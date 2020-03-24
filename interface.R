@@ -1,4 +1,3 @@
-
 library(shiny)
 library(readxl)
 library(dplyr)
@@ -12,7 +11,7 @@ rm(list = ls())
 # Source necessary functions for covid-19 forcasts
 source("functions.r")
 
-# Load know parameters
+# Load known parameters
 pars0 <- as.data.frame(read_xlsx("params.xlsx"))
 pars0$date <- conv(pars0$date)
 
@@ -421,7 +420,8 @@ ui <- shinyUI(fluidPage(
 
           div(p(strong("Creators:"), "Aziz Chaouch, Jérôme Pasquier,",
                 "Valentin Rousson and Bastien Trächsel"), 
-              p(strong("R Packages:"), "shiny, dplyr, ggplot2"),
+              p(strong("R Packages:"), "dplyr, ggplot2, readxl,
+                shiny, snowfall"),
               style = "font-family: courier;")
 
         )
@@ -550,9 +550,6 @@ server <- function(input, output, session) {
 
     lam <- rlam(1e06, input$mlam, input$vlam)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilam) / 2
-    # qlam <- quantile(lam, probs = p)
-    # hist(lam, xlab = "", ylab = "", yaxt = "n", main = "")
-    # abline(v = qlam, lty = 2)
     histo(lam, p)
 
   })
@@ -561,9 +558,6 @@ server <- function(input, output, session) {
 
     pic <- rpic(1e06, input$mpic, input$vpic)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipic) / 2
-    # qpic <- quantile(pic, probs = p)
-    # hist(pic, xlab = "", ylab = "", yaxt = "n", main = "")
-    # abline(v = qpic, lty = 2)
     histo(pic, p)
 
   })
@@ -572,9 +566,6 @@ server <- function(input, output, session) {
 
     lag <- rlag(1e06, input$mlag, input$vlag)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilag) / 2
-    # qlag <- quantile(lag, probs = p)
-    # hist(lag, xlab = "", ylab = "", yaxt = "n", main = "")
-    # abline(v = qlag, lty = 2)
     histo(lag, p)
 
   })
@@ -583,9 +574,6 @@ server <- function(input, output, session) {
 
     los <- rlos(1e06, input$mlos, input$vlos)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilos) / 2
-    # qlos <- quantile(los, probs = p)
-    # hist(los, xlab = "", ylab = "", yaxt = "n", main = "")
-    # abline(v = qlos, lty = 2)
     histo(los, p)
 
   })
@@ -609,10 +597,6 @@ server <- function(input, output, session) {
   })
 
 # -------------------------------- FORECASTS -------------------------------- #
-
-  # FORECASTS USING PRED.COVID() FUNCTION
-
-  # Forecasts ICU beds requirements
 
   output$date_max_ui <- renderUI({
     dm <- max(input_data()$date)
@@ -654,20 +638,8 @@ server <- function(input, output, session) {
   output$plot_fc_ntot <- renderPlot({
 
     validate(need(rv$pred, ""))
-
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cintot) / 2
-    # days <- rv$days
     pred <- rv$pred
-    # data <- input_data()
-    # today <- data$date[nrow(data)]
-    # qntot <- t(apply(pred$ntot,2,quantile,probs=p))
-    # plot(range(days),range(qntot),type="n",xlab="",ylab="Nombre de cas")
-    # title("Nombre cumulatif de cas confirmés COVID-19 dans le canton de Vaud")
-    # polygon(x=c(days,rev(days)),y=c(qntot[,1],rev(qntot[,3])),col="grey",border=NA)
-    # lines(days,qntot[,2],lwd=2)
-    # points(data$date,data$ntot,pch=19)
-    # abline(v=today,lty=2)
-
     plot.covid(pred, what = "ntot", prob = p)
 
   })
@@ -675,26 +647,18 @@ server <- function(input, output, session) {
   output$plot_fc_nbed <- renderPlot({
 
     validate(need(rv$pred, ""))
-
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cinbed) / 2
-    # days <- rv$days
     pred <- rv$pred
-    # data <- input_data()
-    # today <- data$date[nrow(data)]
-    # qnbed <- t(apply(pred$nbed,2,quantile,probs=p))
-    # plot(range(days),range(qnbed),type="n",xlab="",ylab="Nombre de lits")
-    # title("Nombre de lits occupés aux soins intensifs dans le canton de Vaud")
-    # polygon(x=c(days,rev(days)),y=c(qnbed[,1],rev(qnbed[,3])),col="grey",border=NA)
-    # lines(days,qnbed[,2],lwd=2)
-    # points(data$date,data$nicu,pch=19)
-    # abline(v=today,lty=2)
-
     plot.covid(pred, what = "nbed", prob = p)
 
   })
 
 }
 
-## RUN THE APP
+# =========================================================================== #
+#                                                                             #
+#                               RUN THE APP                                   #
+#                                                                             #
+# =========================================================================== #
 
 shinyApp(ui, server)
