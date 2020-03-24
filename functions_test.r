@@ -45,7 +45,6 @@ rlos <- function(
 # ------------------------------------------------------------------------------------------------------
 # Histogram for parameters
 histo <- function(x,prob){
-  par(mar=c(3,3,3,3),mgp=c(1.8,0.6,0))
   h <- hist(x,xlab="Value",ylab="",main="",col="lightblue",yaxt="n",yaxs="i",freq=FALSE)
   if(!is.null(prob)){
     stopifnot(length(prob)==3)
@@ -124,7 +123,7 @@ pred.covid <- function(
   vlag <- pars$vlag[ind]
   mlos <- pars$mlos[ind]
   vlos <- pars$vlos[ind]
-  
+
   # Fill-in observed cumulative counts
   ntot <- matrix(nrow=nsim,ncol=j+nday)
   ntot[,1:j] <- t(data$ntot)[rep(1,nsim),] 
@@ -138,13 +137,14 @@ pred.covid <- function(
   for(k in 1:(j+nday-1)){ninc[,k+1] <- ntot[,k+1]-ntot[,k]}
   if(sum(ninc<0)>0){stop("Some incident counts are negative!")}
   
-  # Calculate incident cases that will require intensive cares at some point
-  nicu <- matrix(nrow=nsim,ncol=j+nday)
-  for(k in 1:(j+nday)){nicu[,k] <- round(rpic(nsim,mpic[k],vpic[k])*ninc[,k])}
+  # # Calculate incident cases that will require intensive cares at some point
+  # nicu <- matrix(nrow=nsim,ncol=j+nday)
+  # for(k in 1:(j+nday)){nicu[,k] <- round(rpic(nsim,mpic[k],vpic[k])*ninc[,k])}
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun <- function(s){
-    npat <- nicu[s,]
+    #npat <- nicu[s,]
+    npat <- ninc[s,]
     tst_i <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define COVID-19 test day for all patients that will be admitted in ICU
     lag_i <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE)) # lag for all patients that will be admitted in ICU
     los_i <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE)) # length of stay for all patients that will be admitted in ICU
@@ -152,6 +152,16 @@ pred.covid <- function(
     # Define ICU day-in and ICU day-out for these patients
     day.in <- tst_i+lag_i
     day.out <- tst_i+lag_i+los_i-1
+    
+    # Among patients entering 
+    for(k in 1:(j+nday)){
+      sel <- which(day.in==k); nsel <- length(sel)
+      if(nsel>0){
+        pic <- rbinom(nsel,size=1,prob=rpic(1,mpic[k],vpic[k]))
+        day.in[sel] <- day.in[sel]*pic
+        day.out[sel] <- day.out[sel]*pic
+      }
+    }
     
     # Fill-in occupancy matrix for new patients admitted in ICU over the next few days
     occ <- matrix(0,nrow=sum(npat),ncol=j+nday)
@@ -175,12 +185,13 @@ pred.covid <- function(
       nbed[s,] <- fun(s)
     }
   }
-  colnames(ntot) <- colnames(ninc) <- colnames(nicu) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
+  #colnames(ntot) <- colnames(ninc) <- colnames(nicu) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
+  colnames(ntot) <- colnames(ninc) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
   list(
     ntot=ntot, # cumulative counts of confirmed cases
     ninc=ninc, # counts of incident cases
-    nicu=nicu, # counts of incident cases that will require intensive cares
-    nbed=nbed, # predicted nb of occupied ICU beds
-    data=data  # return data (for plotting)
+    #nicu=nicu, # counts of incident cases that will require intensive cares
+    nbed=nbed,  # predicted nb of occupied ICU beds
+    data=data   # return data (for plotting)
   )
 }
