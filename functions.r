@@ -43,6 +43,61 @@ rlos <- function(
 ){rnbinom(n,mu=mlos,size=mlos^2/(vlos-mlos))}
 
 # ------------------------------------------------------------------------------------------------------
+# Histogram for parameters
+histo <- function(x,prob){
+  par(mar=c(3,3,3,3),mgp=c(1.8,0.6,0))
+  h <- hist(x,xlab="Value",ylab="",main="",col="lightblue",yaxt="n",yaxs="i",freq=FALSE)
+  if(!is.null(prob)){
+    stopifnot(length(prob)==3)
+    q <- quantile(x,probs=prob)
+    abline(v=q[c(1,3)],lty=2,lwd=2,col="red")
+    abline(v=q[2],lwd=2,col="red")
+    mtext(paste0(100*p,"%"),side=3,at=q,col="red",cex=0.8)
+  }
+}
+
+# ------------------------------------------------------------------------------------------------------
+# Plot function for object returned by pred.covid()
+plot.covid <- function(
+  object.covid,           # object returned by pred.covid()
+  what="nbed",            # name of element to plot in object.covid
+  prob=c(0.025,0.5,0.975) # quantiles to plot (length=3!)
+){
+  stopifnot(length(prob)==3)
+  data <- object.covid$data
+  X <- object.covid[[what]]
+  Q <- t(apply(X,2,quantile,probs=prob))
+  days <- as.Date(strptime(colnames(X),format="%d.%m.%Y"))
+  today <- data$date[nrow(data)]
+  past <- which(days<=today)
+  futur <- which(days>=today)
+  
+  if(what=="nbed"){
+    tit <- "Number of occupied beds in ICUs"
+    ylb <- "Number of beds"
+    y <- data$nicu
+  }
+  if(what=="ntot"){
+    tit <- "Cumulative counts of confirmed cases"
+    ylb <- "Counts"
+    y <- data$ntot
+  }
+  
+  par(mar=c(3,5,3,3),mgp=c(1.8,0.6,0))
+  plot(range(days),range(y,Q),type="n",xlab="",ylab="",las=1)
+  mtext(ylb,side=2,line=3)
+  title(tit)
+  polygon(x=c(days[past],rev(days[past])),y=c(Q[past,1],rev(Q[past,3])),col="lightgrey",border=NA)
+  lines(days[past],Q[past,2],lwd=2,col="darkgrey")
+  polygon(x=c(days[futur],rev(days[futur])),y=c(Q[futur,1],rev(Q[futur,3])),col="lightblue",border=NA)
+  lines(days[futur],Q[futur,2],lwd=2,col="blue")
+  points(data$date,y,pch=19)
+  points(days[futur],Q[futur,2],pch=1,col="blue")
+  abline(v=today,lty=2)
+  legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,1),col=c("black","blue"),bty="n",cex=0.8)
+}
+
+# ------------------------------------------------------------------------------------------------------
 # Forecast nb of ICU beds
 pred.covid <- function(
   nday,     # nb of days to forcast
@@ -125,6 +180,7 @@ pred.covid <- function(
     ntot=ntot, # cumulative counts of confirmed cases
     ninc=ninc, # counts of incident cases
     nicu=nicu, # counts of incident cases that will require intensive cares
-    nbed=nbed  # predicted nb of occupied ICU beds
+    nbed=nbed, # predicted nb of occupied ICU beds
+    data=data  # return data (for plotting)
   )
 }
