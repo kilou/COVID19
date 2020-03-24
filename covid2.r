@@ -5,6 +5,8 @@ setwd("~/Documents/Work/COVID19")
 source("functions.r")
 source("functions_test.r")
 
+shiny::runApp("interface.R")
+
 # Load data and parameters
 # Data available on https://www.vd.ch/toutes-les-actualites/hotline-et-informations-sur-le-coronavirus/
 library(readxl)
@@ -16,7 +18,7 @@ today <- data$date[nrow(data)]
 
 # ------------------------------------------------------------------------------------------------------
 # VISUALIZE PRIOR DISTRIBUTIONS                        
-level <- 0.95
+level <- 0.90
 alpha <- 1-level
 p <- c(alpha/2,0.5,1-alpha/2)
 

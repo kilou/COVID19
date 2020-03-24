@@ -45,13 +45,13 @@ rlos <- function(
 # ------------------------------------------------------------------------------------------------------
 # Histogram for parameters
 histo <- function(x,prob){
-  h <- hist(x,xlab="Value",ylab="",main="",col="lightblue",yaxt="n",yaxs="i",freq=FALSE)
+  h <- hist(x,breaks=50,xlab="",ylab="",main="",col="#428bca",yaxt="n",yaxs="i",freq=FALSE)
   if(!is.null(prob)){
     stopifnot(length(prob)==3)
     q <- quantile(x,probs=prob)
     abline(v=q[c(1,3)],lty=2,lwd=2,col="red")
     abline(v=q[2],lwd=2,col="red")
-    mtext(paste0(100*p,"%"),side=3,at=q,col="red",cex=0.8)
+    mtext(paste0(100*prob,"%"),side=3,at=q,col="red",cex=0.8)
   }
 }
 
@@ -88,12 +88,13 @@ plot.covid <- function(
   title(tit)
   polygon(x=c(days[past],rev(days[past])),y=c(Q[past,1],rev(Q[past,3])),col="lightgrey",border=NA)
   lines(days[past],Q[past,2],lwd=2,col="darkgrey")
-  polygon(x=c(days[futur],rev(days[futur])),y=c(Q[futur,1],rev(Q[futur,3])),col="lightblue",border=NA)
-  lines(days[futur],Q[futur,2],lwd=2,col="blue")
-  points(data$date,y,pch=19)
-  points(days[futur[-1]],Q[futur[-1],2],pch=1,col="blue")
+  polygon(x=c(days[futur],rev(days[futur])),y=c(Q[futur,1],rev(Q[futur,3])),col="#428bca",border=NA)
+  lines(days[futur],Q[futur,2],lwd=2,col="red")
+  points(data$date,y,pch=19,col="black")
+  points(days[futur[-1]],Q[futur[-1],2],pch=19,col="red")
   abline(v=today,lty=2)
-  legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,1),col=c("black","blue"),bty="n",cex=0.8)
+  legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=0.8)
+  mtext(paste0(100*prob,"%"),side=4,at=Q[nrow(Q),],cex=0.8,las=1,col=c("#428bca","red","#428bca"),line=0.25)
 }
 
 # ------------------------------------------------------------------------------------------------------
