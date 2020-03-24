@@ -13,7 +13,7 @@ rm(list = ls())
 source("functions.r")
 
 # Load know parameters
-pars0 <- read.csv("params.csv")
+pars0 <- as.data.frame(read_xlsx("params.xlsx"))
 pars0$date <- conv(pars0$date)
 
 
@@ -108,50 +108,6 @@ ui <- shinyUI(fluidPage(
 
       ),
 
-      # tabPanel("Estimation",
-
-        # fluidPage(
-
-          # fluidRow(
-
-            # column(width = 3, 
-
-              # radioButtons(inputId = "predint",
-                           # label = "",
-                           # choices = paste(c("without", "with"),
-                                           # "prediction interval"),
-                           # selected = "without prediction interval"),
-
-
-              # numericInput(inputId = "predint_length",
-                           # label = "Prediction interval length",
-                           # value = 0.5,
-                           # min = 0,
-                           # max = 1,
-                           # step = 0.05)
-            # ),
-
-            # column(width = 3,
-
-              # br(),
-
-              # uiOutput("date_max_ui")
-
-            # )
- 
-          # ),
-
-          # fluidRow(
-
-            # plotOutput("plot_predicted_new_cases",
-                       # width = "100%", height = "350px")
-
-          # )
-
-        # )
-
-      # ),
-
       tabPanel("Parameters",
 
         fluidPage(
@@ -172,7 +128,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mlam",
                                label = "Value",
-                               value = 1.25,
+                               value = pars0$mlam[3],
                                min = 1,
                                max = Inf,
                                step = 0.01)
@@ -183,9 +139,9 @@ ui <- shinyUI(fluidPage(
 
                   sliderInput(inputId = "vlam",
                               label = "Variance",
-                              value = 0.05,
+                              value = pars0$vlam[3],
                               min = 0,
-                              max = 0.1)
+                              max = max(0.1, pars0$vlam[3]))
 
                 ),
 
@@ -204,9 +160,11 @@ ui <- shinyUI(fluidPage(
 
               fluidRow(
 
-                plotOutput("plot_lam")
+                plotOutput("plot_lam", height = "300px")
 
-              )
+              ),
+
+              style = "margin-bottom:30px; border:1px solid; padding:20px;"
 
             ),
 
@@ -223,7 +181,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mpic",
                                label = "Value",
-                               value = 0.15,
+                               value = pars0$mpic[3],
                                min = 0,
                                max = 1,
                                step = 0.01)
@@ -234,9 +192,9 @@ ui <- shinyUI(fluidPage(
 
                   sliderInput(inputId = "vpic",
                               label = "Variance",
-                              value = 0.05,
+                              value = pars0$vpic[3],
                               min = 0,
-                              max = 0.1)
+                              max = max(0.1, pars0$vpic[3]))
 
                 ),
 
@@ -255,9 +213,11 @@ ui <- shinyUI(fluidPage(
 
               fluidRow(
 
-                plotOutput("plot_pic")
+                plotOutput("plot_pic", height = "300px")
 
-              )
+              ),
+
+              style = "margin-bottom:30px; border:1px solid; padding:20px;"
 
             )
 
@@ -279,7 +239,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mlag",
                                label = "Value",
-                               value = 8,
+                               value = pars0$mlag[3],
                                min = 0,
                                max = Inf,
                                step = 1)
@@ -307,9 +267,11 @@ ui <- shinyUI(fluidPage(
 
               fluidRow(
 
-                plotOutput("plot_lag")
+                plotOutput("plot_lag", height = "300px")
 
-              )
+              ),
+
+              style = "margin-bottom:30px; border:1px solid; padding:20px;"
 
             ),
 
@@ -325,7 +287,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mlos",
                                label = "Value",
-                               value = 9,
+                               value = pars0$mlos[3],
                                min = 0,
                                max = Inf,
                                step = 1)
@@ -353,9 +315,11 @@ ui <- shinyUI(fluidPage(
 
               fluidRow(
 
-                plotOutput("plot_los")
+                plotOutput("plot_los", height = "300px")
 
-              )
+              ),
+
+              style = "margin-bottom:30px; border:1px solid; padding:20px;"
 
             )
 
@@ -375,13 +339,36 @@ ui <- shinyUI(fluidPage(
 
           fluidRow(
 
-            actionButton("submit", "Compute forcasts")
+            column(6,
+
+              uiOutput("date_max_ui")
+
+            ),
+
+            column(6,
+
+              strong("Compute forecasts"),
+
+              br(),
+
+              actionButton("submit", "Submit")
+
+            )
 
           ),
 
           br(),
 
           fluidRow(
+
+          ##### DEBUG #####
+
+          #uiOutput("pars"),
+          #uiOutput("data"),
+          #uiOutput("days"),
+          #uiOutput("pred_ntot")
+
+          #################
 
             column(6,
 
@@ -405,12 +392,6 @@ ui <- shinyUI(fluidPage(
             )
 
           ),
-
-
-          #uiOutput("pars"),
-          #uiOutput("data"),
-          #uiOutput("days"),
-          #uiOutput("pred_ntot")
 
 
           fluidRow(
@@ -472,8 +453,8 @@ server <- function(input, output, session) {
     # having a comma separator causes `read.csv` to error
     tryCatch(
       {
-        if (input$file1$type %in% c("text/csv",
-                                    "text/comma-separated-values,text/plain")) {
+        if (input$file1$type %in%
+              c("text/csv", "text/comma-separated-values,text/plain")) {
           df <- read.csv(input$file1$datapath,
                    header = input$header,
                    sep = input$sep,
@@ -498,6 +479,8 @@ server <- function(input, output, session) {
     }
 
     df$date <- as.Date(df$date0, format = input$date_format)
+    df$ntot <- as.integer(df$ntot)
+    df$nicu <- as.integer(df$nicu)
 
     df <- df[c("date0", "date", "ntot", "nicu")]
 
@@ -525,7 +508,7 @@ server <- function(input, output, session) {
 
     input_data() %>%
       ggplot(aes(x = date, y = ntot)) +
-      geom_col(alpha = 0.9) +
+      geom_col(fill = "#428bca") +
       theme_minimal() +
       labs(x = "Date", y = "Cumulative cases")
 
@@ -535,7 +518,7 @@ server <- function(input, output, session) {
 
     input_data() %>%
       ggplot(aes(x = date, y = nicu)) +
-      geom_col(alpha = 0.9) +
+      geom_col(fill = "#428bca") +
       theme_minimal() +
       labs(x = "Date", y = "N ICU")
 
@@ -547,9 +530,9 @@ server <- function(input, output, session) {
 
     sliderInput(inputId = "vlag",
                 label = "Variance",
-                value = 2 * input$mlag,
+                value = max(input$mlag, pars0$vlag[3]),
                 min = input$mlag,
-                max = 3 * input$mlag)
+                max = max(3 * input$mlag, pars0$vlag[3]))
 
   })
 
@@ -557,53 +540,53 @@ server <- function(input, output, session) {
 
     sliderInput(inputId = "vlos",
                 label = "Variance",
-                value = 2 * input$mlos,
+                value = max(input$mlos, pars0$vlos[3]),
                 min = input$mlos,
-                max = 3 * input$mlos)
+                max = max(3 * input$mlos, pars0$vlos[3]))
 
   })
 
   output$plot_lam <- renderPlot({
 
     lam <- rlam(1e06, input$mlam, input$vlam)
-    p <- 0:1 + c(1, -1) * (1 - input$cilam) / 2
-    qlam <- quantile(lam, probs = p)
-    hist(lam, xlab = "Value", ylab = "", yaxt = "n",
-         main = "Distribution of the exponential growth parameter")
-    abline(v = qlam, lty = 2)
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilam) / 2
+    # qlam <- quantile(lam, probs = p)
+    # hist(lam, xlab = "", ylab = "", yaxt = "n", main = "")
+    # abline(v = qlam, lty = 2)
+    histo(lam, p)
 
   })
 
   output$plot_pic <- renderPlot({
 
     pic <- rpic(1e06, input$mpic, input$vpic)
-    p <- 0:1 + c(1, -1) * (1 - input$cipic) / 2
-    qpic <- quantile(pic, probs = p)
-    hist(pic, xlab = "Value", ylab = "", yaxt = "n",
-         main = "Distribution of the proportion...")
-    abline(v = qpic, lty = 2)
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipic) / 2
+    # qpic <- quantile(pic, probs = p)
+    # hist(pic, xlab = "", ylab = "", yaxt = "n", main = "")
+    # abline(v = qpic, lty = 2)
+    histo(pic, p)
 
   })
 
   output$plot_lag <- renderPlot({
 
     lag <- rlag(1e06, input$mlag, input$vlag)
-    p <- 0:1 + c(1, -1) * (1 - input$cilag) / 2
-    qlag <- quantile(lag, probs = p)
-    hist(lag, xlab = "Value", ylab = "", yaxt = "n",
-         main = "Distribution of the proportion...")
-    abline(v = qlag, lty = 2)
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilag) / 2
+    # qlag <- quantile(lag, probs = p)
+    # hist(lag, xlab = "", ylab = "", yaxt = "n", main = "")
+    # abline(v = qlag, lty = 2)
+    histo(lag, p)
 
   })
 
   output$plot_los <- renderPlot({
 
     los <- rlos(1e06, input$mlos, input$vlos)
-    p <- 0:1 + c(1, -1) * (1 - input$cilos) / 2
-    qlos <- quantile(los, probs = p)
-    hist(los, xlab = "Value", ylab = "", yaxt = "n",
-         main = "Distribution of the proportion...")
-    abline(v = qlos, lty = 2)
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilos) / 2
+    # qlos <- quantile(los, probs = p)
+    # hist(los, xlab = "", ylab = "", yaxt = "n", main = "")
+    # abline(v = qlos, lty = 2)
+    histo(los, p)
 
   })
 
@@ -621,7 +604,7 @@ server <- function(input, output, session) {
       vlos = input$vlos
     )
 
-    rbind(pars0, pars1)
+    rbind(pars0[1:2, ], pars1)
 
   })
 
@@ -631,140 +614,84 @@ server <- function(input, output, session) {
 
   # Forecasts ICU beds requirements
 
-  rv <- reactiveValues(
-   # pred=list(
-     # ntot=matrix(1, nrow = 3, ncol = 3),
-     # ninc=matrix(1, nrow = 3, ncol = 3),
-     # nicu=matrix(1, nrow = 3, ncol = 3),
-     # nbed=matrix(1, nrow = 3, ncol = 3)
-   # )
-  )
+  output$date_max_ui <- renderUI({
+    dm <- max(input_data()$date)
+    dateInput(inputId = "date_max",
+                        label = "Prediction until ...",
+                        value = dm + 7,
+                        min = dm + 1,
+                        max = NULL,
+                        format = "yyyy-mm-dd")
+  })
+
+
+  rv <- reactiveValues()
+
+  nday <- reactive({
+
+    input$date_max - max(input_data()$date)
+
+  })
 
   observeEvent(input$submit, {
 
-    rv$pred <- pred.covid(nday = 7, nsim = 2000, pars(), input_data(), ncpu=4)
+    rv$pred <- pred.covid(nday = nday(), nsim = 2000, pars(),
+                          input_data(), ncpu = 4)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
 
   })
 
-  output$pars <- renderTable({ pars() })
+  ###### DEBUG #######
 
-  output$data <- renderTable({ input_data() })
+  # output$pars <- renderTable({ pars() })
+  # output$data <- renderTable({ input_data() })
+  # output$pred_ntot <- renderTable({ rv$pred$ntot })
+  # output$days <- renderText({ paste(as.character(rv$days), collapse=" ") })
 
-  output$pred_ntot <- renderTable({ rv$pred$ntot })
-
-  output$days <- renderText({ paste(as.character(rv$days), collapse=" ") })
+  #####################
 
   output$plot_fc_ntot <- renderPlot({
 
+    validate(need(rv$pred, ""))
+
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cintot) / 2
-    days <- rv$days
+    # days <- rv$days
     pred <- rv$pred
-    data <- input_data()
-    today <- data$date[nrow(data)]
-    qntot <- t(apply(pred$ntot,2,quantile,probs=p))
-    plot(range(days),range(qntot),type="n",xlab="",ylab="Nombre de cas")
-    title("Nombre cumulatif de cas confirmés COVID-19 dans le canton de Vaud")
-    polygon(x=c(days,rev(days)),y=c(qntot[,1],rev(qntot[,3])),col="grey",border=NA)
-    lines(days,qntot[,2],lwd=2)
-    points(data$date,data$ntot,pch=19)
-    abline(v=today,lty=2)
+    # data <- input_data()
+    # today <- data$date[nrow(data)]
+    # qntot <- t(apply(pred$ntot,2,quantile,probs=p))
+    # plot(range(days),range(qntot),type="n",xlab="",ylab="Nombre de cas")
+    # title("Nombre cumulatif de cas confirmés COVID-19 dans le canton de Vaud")
+    # polygon(x=c(days,rev(days)),y=c(qntot[,1],rev(qntot[,3])),col="grey",border=NA)
+    # lines(days,qntot[,2],lwd=2)
+    # points(data$date,data$ntot,pch=19)
+    # abline(v=today,lty=2)
+
+    plot.covid(pred, what = "ntot", prob = p)
 
   })
 
   output$plot_fc_nbed <- renderPlot({
 
+    validate(need(rv$pred, ""))
+
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cinbed) / 2
-    days <- rv$days
+    # days <- rv$days
     pred <- rv$pred
-    data <- input_data()
-    today <- data$date[nrow(data)]
-    qnbed <- t(apply(pred$nbed,2,quantile,probs=p))
-    plot(range(days),range(qnbed),type="n",xlab="",ylab="Nombre de lits")
-    title("Nombre de lits occupés aux soins intensifs dans le canton de Vaud")
-    polygon(x=c(days,rev(days)),y=c(qnbed[,1],rev(qnbed[,3])),col="grey",border=NA)
-    lines(days,qnbed[,2],lwd=2)
-    points(data$date,data$nicu,pch=19)
-    abline(v=today,lty=2)
+    # data <- input_data()
+    # today <- data$date[nrow(data)]
+    # qnbed <- t(apply(pred$nbed,2,quantile,probs=p))
+    # plot(range(days),range(qnbed),type="n",xlab="",ylab="Nombre de lits")
+    # title("Nombre de lits occupés aux soins intensifs dans le canton de Vaud")
+    # polygon(x=c(days,rev(days)),y=c(qnbed[,1],rev(qnbed[,3])),col="grey",border=NA)
+    # lines(days,qnbed[,2],lwd=2)
+    # points(data$date,data$nicu,pch=19)
+    # abline(v=today,lty=2)
+
+    plot.covid(pred, what = "nbed", prob = p)
 
   })
-
-
-
-# # Plot nb ICU beds required
-# qnbed <- t(apply(pred$nbed,2,quantile,probs=p))
-# plot(range(days),range(qnbed),type="n",xlab="",ylab="Nombre de lits")
-# title("Nombre de lits occupés aux soins intensifs dans le canton de Vaud")
-# polygon(x=c(days,rev(days)),y=c(qnbed[,1],rev(qnbed[,3])),col="grey",border=NA)
-# lines(days,qnbed[,2],lwd=2)
-# points(data$date,data$nicu,pch=19)
-# abline(v=today,lty=2)
-
-
-
-  # output$date_max_ui <- renderUI({
-    # dm <- max(input_data()$date) + 1
-    # dateInput(inputId = "date_max",
-                        # label = "Prediction until ...",
-                        # value = dm,
-                        # min = dm,
-                        # max = NULL,
-                        # format = "yyyy-mm-dd")
-  # })
-
-  # predicted_new_cases_matrix <- reactive({
-
-    # nc <- input_data()
-    # fit <- lm(log(new_cases) ~ date, data = nc)
-    # dm <- input$date_max
-    # new_dates <- seq(max(nc$date) + 1, by = 1, len = dm - max(nc$date))
-    # n <- predict(fit, data.frame(date = new_dates))
-    # nsim = 100
-    # M <- exp(t(sapply(n, function(z)
-      # rnorm(n = nsim, mean = z, sd = abs(z)/10)
-    # )))
-    # attr(M, "dates") <- new_dates
-    # return(M)
-
-  # })
-
-  # output$plot_predicted_new_cases <- renderPlot({
-
-    # PI_length <- input$predint_length
-    # M <- predicted_new_cases_matrix()
-
-    # PI <- t(apply(M, 1, quantile, 0:1 + c(1, -1) * (1 - PI_length) / 2))
-    # colnames(PI) <- c("lwr", "upr")
-
-    # predicted_new_cases <- data.frame(
-      # date = attr(M, "dates"),
-      # new_cases = round(apply(M, 1, median))
-    # )
-    # predicted_new_cases <- cbind(predicted_new_cases, PI)
-
-    # all_new_cases <- bind_rows(
-      # cbind(input_data(), value_type = "observed value"),
-      # cbind(predicted_new_cases, value_type = "predicted value")
-    # )
-
-    # plt <- all_new_cases %>%
-      # ggplot(aes(x = date, y = new_cases, fill = value_type)) +
-      # geom_col(alpha = 2/3) +
-      # scale_fill_manual(values = c("dodgerblue", "red")) +
-      # theme_minimal() +
-      # theme(legend.position = "top", legend.title=element_blank()) +
-      # labs(x = "Date", y = "New cases")
-
-    # if (input$predint == "with prediction interval") {
-      # plt <- plt +
-        # geom_errorbar(aes(ymin=lwr, ymax=upr), width=.2,
-                      # position=position_dodge(.9))
-    # }
-
-    # return(plt)
-
-  # })
 
 }
 
