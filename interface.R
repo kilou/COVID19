@@ -340,19 +340,29 @@ ui <- shinyUI(fluidPage(
 
           fluidRow(
 
-            column(6,
+            column(2,
 
               uiOutput("date_max_ui")
 
             ),
 
-            column(6,
+            column(2,
 
               strong("Compute forecasts"),
 
               br(),
 
               actionButton("submit", "Submit")
+
+            ),
+
+            column(2,
+
+              strong("Download forecasts"),
+
+              br(),
+
+              uiOutput("dl_forcasts_ui")
 
             )
 
@@ -371,7 +381,7 @@ ui <- shinyUI(fluidPage(
 
           #################
 
-            column(6,
+            column(3,
 
               numericInput(inputId = "cintot",
                            label = "CI length for #cases",
@@ -382,7 +392,7 @@ ui <- shinyUI(fluidPage(
 
             ),
 
-            column(6,
+            column(3,
 
               numericInput(inputId = "cinbed",
                            label = "CI length for #beds",
@@ -405,12 +415,6 @@ ui <- shinyUI(fluidPage(
 
             plotOutput("plot_fc_nbed")
 
-          ),
-
-          fluidRow(
-
-            downloadButton("dl_forcasts", "Download forcasts")
-
           )
 
         )
@@ -428,7 +432,7 @@ ui <- shinyUI(fluidPage(
           div(p(strong("Creators:"), "Aziz Chaouch, Jérôme Pasquier,",
                 "Valentin Rousson and Bastien Trächsel"), 
               p(strong("R Packages:"), "dplyr, ggplot2, readxl,
-                shiny, snowfall, writexl"),
+                shiny, shinybusy, snowfall, writexl"),
               style = "font-family: courier;")
 
         )
@@ -559,6 +563,7 @@ server <- function(input, output, session) {
 
     lam <- rlam(1e06, input$mlam, input$vlam)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilam) / 2
+    validate(need(lam, ""))
     histo(lam, p)
 
   })
@@ -567,6 +572,7 @@ server <- function(input, output, session) {
 
     pic <- rpic(1e06, input$mpic, input$vpic)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipic) / 2
+    validate(need(pic, ""))
     histo(pic, p)
 
   })
@@ -575,6 +581,7 @@ server <- function(input, output, session) {
 
     lag <- rlag(1e06, input$mlag, input$vlag)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilag) / 2
+    validate(need(lag, ""))
     histo(lag, p)
 
   })
@@ -583,25 +590,12 @@ server <- function(input, output, session) {
 
     los <- rlos(1e06, input$mlos, input$vlos)
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilos) / 2
+    validate(need(los, ""))
     histo(los, p)
 
   })
 
   pars <- reactive({
-
-    # pars1 <- data.frame(
-      # date = input_data()$date[nrow(input_data())],
-      # mlam = input$mlam,
-      # vlam = input$vlam,
-      # mpic = input$mpic,
-      # vpic = input$vpic,
-      # mlag = input$mlag,
-      # vlag = input$vlag,
-      # mlos = input$mlos,
-      # vlos = input$vlos
-    # )
-
-    # rbind(pars0[1:2, ], pars1)
 
     pars <- pars0
     i <- nrow(pars)
@@ -696,11 +690,21 @@ server <- function(input, output, session) {
   })
 
   output$dl_forcasts <- downloadHandler(
+
     filename = function() {
       paste0("forcasts_", format(Sys.time(), "%Y%m%d%H%M%S"), ".xlsx")
     },
     content = function(file) {write_xlsx(fc_table(), path = file)}
+
   )
+
+  output$dl_forcasts_ui <- renderUI({
+
+    req(rv$pred)
+
+    downloadButton("dl_forcasts", "Download")
+
+  })
 
   fc_table <- reactive({
 
@@ -709,16 +713,16 @@ server <- function(input, output, session) {
     colnames(ntot) <- c("ntot", colnames(ntot)[2:3])
     ntot <- cbind(date = rownames(ntot),
                   as.data.frame(ntot, check.names = FALSE))
+
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
     nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = rownames(nbed),
                   as.data.frame(nbed, check.names = FALSE))
+
     list(ntot = ntot, nbed = nbed)
 
   })
-
-
 
 }
 
