@@ -3,9 +3,8 @@
 ########################################################################################################
 setwd("~/Documents/Work/COVID19")
 source("functions.r")
-source("functions_test.r")
-
-shiny::runApp("interface.R")
+#source("functions_test.r")
+#shiny::runApp("interface.R")
 
 # Load data and parameters
 # Data available on https://www.vd.ch/toutes-les-actualites/hotline-et-informations-sur-le-coronavirus/
