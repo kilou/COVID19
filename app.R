@@ -1,10 +1,17 @@
-library(shiny)
-library(readxl)
-library(dplyr)
-library(ggplot2)
-library(snowfall)
-library(writexl)
-library(shinybusy)
+reqpack<-function(X){
+  pak_failed<-which(!unlist(lapply(X,require,character.only=T)))
+  if(length(pak_failed)>=1){
+    install.packages(X[pak_failed],repos='https://stat.ethz.ch/CRAN/')
+    lapply(X[pak_failed],require,character.only=T)
+  }
+}
+reqpack(c("shiny",
+          "readxl",
+          "dplyr",
+          "ggplot2",
+          "snowfall",
+          "writexl",
+          "shinybusy"))
 
 options(stringsAsFactors = FALSE)
 
