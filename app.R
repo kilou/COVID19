@@ -150,7 +150,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "cilam",
                                label = "CI length",
-                               value = 0.5,
+                               value = 0.9,
                                min = 0,
                                max = 1,
                                step = 0.05)
@@ -203,7 +203,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "cipic",
                                label = "CI length",
-                               value = 0.5,
+                               value = 0.9,
                                min = 0,
                                max = 1,
                                step = 0.05)
@@ -257,7 +257,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "cilag",
                                label = "CI length",
-                               value = 0.5,
+                               value = 0.9,
                                min = 0,
                                max = 1,
                                step = 0.05)
@@ -305,7 +305,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "cilos",
                                label = "CI length",
-                               value = 0.5,
+                               value = 0.9,
                                min = 0,
                                max = 1,
                                step = 0.05)
@@ -385,7 +385,7 @@ ui <- shinyUI(fluidPage(
 
               numericInput(inputId = "cintot",
                            label = "CI length for #cases",
-                           value = 0.5,
+                           value = 0.9,
                            min = 0,
                            max = 1,
                            step = 0.05)
@@ -396,7 +396,7 @@ ui <- shinyUI(fluidPage(
 
               numericInput(inputId = "cinbed",
                            label = "CI length for #beds",
-                           value = 0.5,
+                           value = 0.9,
                            min = 0,
                            max = 1,
                            step = 0.05)
@@ -638,7 +638,7 @@ server <- function(input, output, session) {
     show_modal_spinner() # show the modal window
 
     rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(),
-                          input_data(), ncpu = 6)
+                          input_data(), ncpu = 8)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
 
