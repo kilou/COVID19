@@ -3,8 +3,7 @@
 ########################################################################################################
 setwd("~/Documents/Work/COVID19")
 source("functions.r")
-#source("functions_test.r")
-#shiny::runApp("interface.R")
+#shiny::runApp("app.R")
 
 # Load data and parameters
 # Data available on https://www.vd.ch/toutes-les-actualites/hotline-et-informations-sur-le-coronavirus/
@@ -49,7 +48,7 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=7,nsim=2000,pars,data,ncpu=4)
+pred <- pred.covid(nday=7,nsim=1000,pars,data,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="ntot",prob=p)

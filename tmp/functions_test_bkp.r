@@ -144,31 +144,29 @@ pred.covid <- function(
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun <- function(s){
+    #npat <- nicu[s,]
     npat <- ninc[s,]
-    tst_i <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define COVID-19 test day for all incident cases
-    lag_i <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE)) # lag for all incident cases
-    los_i <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE)) # length of stay for all incident cases
+    tst_i <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define COVID-19 test day for all patients that will be admitted in ICU
+    lag_i <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE)) # lag for all patients that will be admitted in ICU
+    los_i <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE)) # length of stay for all patients that will be admitted in ICU
     
-    # Define theoretical day-in and day-out for all incident cases
+    # Define ICU day-in and ICU day-out for these patients
     day.in <- tst_i+lag_i
     day.out <- tst_i+lag_i+los_i-1
     
     # ***********************************************************
-    pic <- mapply(rpic,n=1,mpic=mpic,vpic=vpic,SIMPLIFY=TRUE)
     for(k in 1:(j+nday)){
       sel <- which(day.in==k); nsel <- length(sel)
       if(nsel>0){
-        adm <- rbinom(nsel,size=1,prob=pic[k])
-        day.in[sel] <- day.in[sel]*adm
-        day.out[sel] <- day.out[sel]*adm
+        pic <- rbinom(nsel,size=1,prob=rpic(1,mpic[k],vpic[k]))
+        day.in[sel] <- day.in[sel]*pic
+        day.out[sel] <- day.out[sel]*pic
       }
     }
     # ***********************************************************
-    day.in <- day.in[day.in>0]
-    day.out <- day.out[day.out>0]
     
     # Fill-in occupancy matrix for new patients admitted in ICU over the next few days
-    occ <- matrix(0,nrow=length(day.in),ncol=j+nday)
+    occ <- matrix(0,nrow=sum(npat),ncol=j+nday)
     for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(day.in[i]:day.out[i]))] <- 1}
     
     # Return nb of occupied beds

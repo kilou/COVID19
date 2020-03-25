@@ -637,8 +637,8 @@ server <- function(input, output, session) {
 
     show_modal_spinner() # show the modal window
 
-    rv$pred <- pred.covid(nday = nday(), nsim = 2000, pars(),
-                          input_data(), ncpu = 4)
+    rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(),
+                          input_data(), ncpu = 6)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
 
