@@ -4,6 +4,7 @@ library(dplyr)
 library(ggplot2)
 library(snowfall)
 library(writexl)
+library(shinybusy)
 
 options(stringsAsFactors = FALSE)
 
@@ -128,7 +129,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mlam",
                                label = "Value",
-                               value = pars0$mlam[3],
+                               value = pars0$mlam[nrow(pars0)],
                                min = 1,
                                max = Inf,
                                step = 0.01)
@@ -139,9 +140,9 @@ ui <- shinyUI(fluidPage(
 
                   sliderInput(inputId = "vlam",
                               label = "Variance",
-                              value = pars0$vlam[3],
+                              value = pars0$vlam[nrow(pars0)],
                               min = 0,
-                              max = max(0.1, pars0$vlam[3]))
+                              max = max(0.1, pars0$vlam[nrow(pars0)]))
 
                 ),
 
@@ -181,7 +182,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mpic",
                                label = "Value",
-                               value = pars0$mpic[3],
+                               value = pars0$mpic[nrow(pars0)],
                                min = 0,
                                max = 1,
                                step = 0.01)
@@ -192,9 +193,9 @@ ui <- shinyUI(fluidPage(
 
                   sliderInput(inputId = "vpic",
                               label = "Variance",
-                              value = pars0$vpic[3],
+                              value = pars0$vpic[nrow(pars0)],
                               min = 0,
-                              max = max(0.1, pars0$vpic[3]))
+                              max = max(0.1, pars0$vpic[nrow(pars0)]))
 
                 ),
 
@@ -239,7 +240,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mlag",
                                label = "Value",
-                               value = pars0$mlag[3],
+                               value = pars0$mlag[nrow(pars0)],
                                min = 0,
                                max = Inf,
                                step = 1)
@@ -287,7 +288,7 @@ ui <- shinyUI(fluidPage(
 
                   numericInput(inputId = "mlos",
                                label = "Value",
-                               value = pars0$mlos[3],
+                               value = pars0$mlos[nrow(pars0)],
                                min = 0,
                                max = Inf,
                                step = 1)
@@ -363,10 +364,10 @@ ui <- shinyUI(fluidPage(
 
           ##### DEBUG #####
 
-          #uiOutput("pars"),
-          #uiOutput("data"),
-          #uiOutput("days"),
-          #uiOutput("pred_ntot")
+          # uiOutput("pars"),
+          # uiOutput("data"),
+          # uiOutput("days"),
+          # uiOutput("pred_ntot")
 
           #################
 
@@ -436,7 +437,9 @@ ui <- shinyUI(fluidPage(
 
     )
 
-  )
+  ),
+
+  add_busy_spinner(spin = "fading-circle")
 
 ))
 
@@ -536,9 +539,9 @@ server <- function(input, output, session) {
 
     sliderInput(inputId = "vlag",
                 label = "Variance",
-                value = max(input$mlag, pars0$vlag[3]),
+                value = max(input$mlag, pars0$vlag[nrow(pars0)]),
                 min = input$mlag,
-                max = max(3 * input$mlag, pars0$vlag[3]))
+                max = max(3 * input$mlag, pars0$vlag[nrow(pars0)]))
 
   })
 
@@ -546,9 +549,9 @@ server <- function(input, output, session) {
 
     sliderInput(inputId = "vlos",
                 label = "Variance",
-                value = max(input$mlos, pars0$vlos[3]),
+                value = max(input$mlos, pars0$vlos[nrow(pars0)]),
                 min = input$mlos,
-                max = max(3 * input$mlos, pars0$vlos[3]))
+                max = max(3 * input$mlos, pars0$vlos[nrow(pars0)]))
 
   })
 
@@ -586,19 +589,32 @@ server <- function(input, output, session) {
 
   pars <- reactive({
 
-    pars1 <- data.frame(
-      date = input_data()$date[nrow(input_data())],
-      mlam = input$mlam,
-      vlam = input$vlam,
-      mpic = input$mpic,
-      vpic = input$vpic,
-      mlag = input$mlag,
-      vlag = input$vlag,
-      mlos = input$mlos,
-      vlos = input$vlos
-    )
+    # pars1 <- data.frame(
+      # date = input_data()$date[nrow(input_data())],
+      # mlam = input$mlam,
+      # vlam = input$vlam,
+      # mpic = input$mpic,
+      # vpic = input$vpic,
+      # mlag = input$mlag,
+      # vlag = input$vlag,
+      # mlos = input$mlos,
+      # vlos = input$vlos
+    # )
 
-    rbind(pars0[1:2, ], pars1)
+    # rbind(pars0[1:2, ], pars1)
+
+    pars <- pars0
+    i <- nrow(pars)
+    pars$mlam[i] = input$mlam
+    pars$vlam[i] = input$vlam
+    pars$mpic[i] = input$mpic
+    pars$vpic[i] = input$vpic
+    pars$mlag[i] = input$mlag
+    pars$vlag[i] = input$vlag
+    pars$mlos[i] = input$mlos
+    pars$vlos[i] = input$vlos
+
+    return(pars)
 
   })
 
@@ -625,10 +641,14 @@ server <- function(input, output, session) {
 
   observeEvent(input$submit, {
 
+    show_modal_spinner() # show the modal window
+
     rv$pred <- pred.covid(nday = nday(), nsim = 2000, pars(),
                           input_data(), ncpu = 4)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
+
+    remove_modal_spinner()
 
   })
 
