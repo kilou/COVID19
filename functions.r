@@ -19,7 +19,7 @@ rlam <- function(
 ){1+exp(rnorm(n,log(mlam-1),sqrt(vlam)))}
 
 # ------------------------------------------------------------------------------------------------------
-# Random sample for proportion of incident case requiring intensive cares
+# Random sample for proportion of hospitalized patients requiring intensive cares
 rpic <- function(
   n,    # nb draws
   mpic, # median proportion
@@ -27,7 +27,7 @@ rpic <- function(
 ){expit(rnorm(n,logit(mpic),sqrt(vpic)))}
 
 # ------------------------------------------------------------------------------------------------------
-# Random sample for lag (between COVID-19 test and ICU admission)
+# Random sample for lag (between hospitalization and ICU admission)
 rlag <- function(
   n,    # nb draws
   mlag, # expected value for lag (in days)
@@ -43,9 +43,13 @@ rlos <- function(
 ){rnbinom(n,mu=mlos,size=mlos^2/(vlos-mlos))}
 
 # ------------------------------------------------------------------------------------------------------
+# Define RGB code for shiny blue (to be used in rgb() function possibly with alpha transparency)
+rgb.blue <- t(col2rgb("#428bca"))/255
+
+# ------------------------------------------------------------------------------------------------------
 # Histogram for parameters
 histo <- function(x,prob){
-  h <- hist(x,breaks=30,xlab="",ylab="",main="",col="#428bca",yaxt="n",yaxs="i",freq=FALSE)
+  h <- hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE)
   if(!is.null(prob)){
     stopifnot(length(prob)==3)
     q <- quantile(x,probs=prob)
@@ -76,31 +80,37 @@ plot.covid <- function(
     ylb <- "Number of beds"
     y <- data$nicu
   }
-  if(what=="ntot"){
-    tit <- "Cumulative counts of confirmed cases"
+  if(what=="nhos"){
+    tit <- "Cumulative counts of hospitalized patients"
     ylb <- "Counts"
-    y <- data$ntot
+    y <- data$nhos
   }
-  
+
   par(mar=c(3,5,3,3),mgp=c(1.8,0.6,0))
-  plot(range(days),range(y,Q),type="n",xlab="",ylab="",las=1)
-  mtext(ylb,side=2,line=3)
+  plot(range(days),range(c(y,Q)),type="n",xlab="",ylab="",las=1)
+  ytck1 <- pretty(c(y,Q))
+  ytck2 <- seq(min(ytck1),max(ytck1),by=diff(ytck1)[1]/5)
+  abline(h=ytck1,col="grey",lwd=0.5)
+  abline(h=ytck2,col="grey",lwd=0.5,lty=2)
+  abline(v=days,col="grey",lwd=0.5)
+  mtext(ylb,side=2,line=2.8)
   title(tit)
   polygon(x=c(days[past],rev(days[past])),y=c(Q[past,1],rev(Q[past,3])),col="lightgrey",border=NA)
   lines(days[past],Q[past,2],lwd=2,col="darkgrey")
-  polygon(x=c(days[futur],rev(days[futur])),y=c(Q[futur,1],rev(Q[futur,3])),col="#428bca",border=NA)
+  polygon(x=c(days[futur],rev(days[futur])),y=c(Q[futur,1],rev(Q[futur,3])),col=rgb(rgb.blue,alpha=0.5),border=NA)
   lines(days[futur],Q[futur,2],lwd=2,col="red")
   points(data$date,y,pch=19,col="black")
   points(days[futur[-1]],Q[futur[-1],2],pch=19,col="red")
   abline(v=today,lty=2)
-  legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=0.8)
-  mtext(paste0(100*prob,"%"),side=4,at=Q[nrow(Q),],cex=0.8,las=1,col=c("#428bca","red","#428bca"),line=0.25)
+  abline(h=0)
+  legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=1)
+  mtext(paste0(100*prob,"%"),side=4,at=Q[nrow(Q),],cex=0.8,las=1,col=c(rgb(rgb.blue),"red",rgb(rgb.blue)),line=-0.5)
 }
 
 # ------------------------------------------------------------------------------------------------------
 # Forecast nb of ICU beds
 pred.covid <- function(
-  nday,     # nb of days to forcast
+  nday,     # nb of days to forecast
   nsim,     # nb of simulations
   pars,     # dataframe with parameters
   data,     # dataframe with VD data
@@ -125,53 +135,39 @@ pred.covid <- function(
   mlos <- pars$mlos[ind]
   vlos <- pars$vlos[ind]
 
-  # Fill-in observed cumulative counts
-  ntot <- matrix(nrow=nsim,ncol=j+nday)
-  ntot[,1:j] <- t(data$ntot)[rep(1,nsim),] 
+  # Fill-in observed cumulative count of hospitalized patients
+  nhos <- matrix(nrow=nsim,ncol=j+nday)
+  nhos[,1:j] <- t(data$nhos)[rep(1,nsim),]
   
-  # Predict future cumulative counts
-  for(k in (j+1):(j+nday)){ntot[,k] <- round(ntot[,k-1]*rlam(nsim,mlam[k],vlam[k]))}
+  # Predict future cumulative counts of hospitalized patients using exponential growth parameter
+  for(k in (j+1):(j+nday)){nhos[,k] <- round(nhos[,k-1]*rlam(nsim,mlam[k],vlam[k]))}
   
-  # Calculate incident cases
+  # Calculate daily new hospitalizations (i.e. incident counts)
   ninc <- matrix(nrow=nsim,ncol=j+nday)
-  ninc[,1] <- ntot[,1]
-  for(k in 1:(j+nday-1)){ninc[,k+1] <- ntot[,k+1]-ntot[,k]}
+  ninc[,1] <- nhos[,1]
+  for(k in 1:(j+nday-1)){ninc[,k+1] <- nhos[,k+1]-nhos[,k]}
   if(sum(ninc<0)>0){stop("Some incident counts are negative!")}
   
-  # # Calculate incident cases that will require intensive cares at some point
-  # nicu <- matrix(nrow=nsim,ncol=j+nday)
-  # for(k in 1:(j+nday)){nicu[,k] <- round(rpic(nsim,mpic[k],vpic[k])*ninc[,k])}
+  # Calculate incident cases that will require IC at some point
+  nicu <- matrix(nrow=nsim,ncol=j+nday)
+  for(k in 1:(j+nday)){nicu[,k] <- round(rpic(nsim,mpic[k],vpic[k])*ninc[,k])}
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun <- function(s){
-    npat <- ninc[s,]
-    tst_i <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define COVID-19 test day for all incident cases
-    lag_i <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE)) # lag for all incident cases
-    los_i <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE)) # length of stay for all incident cases
+    npat <- nicu[s,]
+    hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU)
+    lag <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE))    # lag for all patients that will require IC
+    los <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE))    # length of stay in ICU for all patients that will require IC
     
-    # Define theoretical day-in and day-out for all incident cases
-    day.in <- tst_i+lag_i
-    day.out <- tst_i+lag_i+los_i-1
+    # Define ICU day-in and day-out for these patients
+    icu.in <- hos.in+lag
+    icu.out <- icu.in+los-1
     
-    # ***********************************************************
-    pic <- mapply(rpic,n=1,mpic=mpic,vpic=vpic,SIMPLIFY=TRUE)
-    for(k in 1:(j+nday)){
-      sel <- which(day.in==k); nsel <- length(sel)
-      if(nsel>0){
-        adm <- rbinom(nsel,size=1,prob=pic[k])
-        day.in[sel] <- day.in[sel]*adm
-        day.out[sel] <- day.out[sel]*adm
-      }
-    }
-    # ***********************************************************
-    day.in <- day.in[day.in>0]
-    day.out <- day.out[day.out>0]
+    # Fill-in bed occupancy matrix in ICU
+    occ <- matrix(0,nrow=sum(npat),ncol=j+nday)
+    for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(icu.in[i]:icu.out[i]))] <- 1}
     
-    # Fill-in occupancy matrix for new patients admitted in ICU over the next few days
-    occ <- matrix(0,nrow=length(day.in),ncol=j+nday)
-    for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(day.in[i]:day.out[i]))] <- 1}
-    
-    # Return nb of occupied beds
+    # Return daily nb of occupied ICU beds
     apply(occ,2,sum)
   }
   
@@ -189,13 +185,12 @@ pred.covid <- function(
       nbed[s,] <- fun(s)
     }
   }
-  #colnames(ntot) <- colnames(ninc) <- colnames(nicu) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
-  colnames(ntot) <- colnames(ninc) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
+  colnames(nhos) <- colnames(ninc) <- colnames(nicu) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
   list(
-    ntot=ntot, # cumulative counts of confirmed cases
-    ninc=ninc, # counts of incident cases
-    #nicu=nicu, # counts of incident cases that will require intensive cares
-    nbed=nbed,  # predicted nb of occupied ICU beds
-    data=data   # return data (for plotting)
+    nhos=nhos, # cumulative counts of hospitalized patients
+    ninc=ninc, # daily new hopitalized patients
+    nicu=nicu, # daily new hospitalized patients that will require IC at some point
+    nbed=nbed, # predicted nb of occupied ICU beds
+    data=data  # return data (for plotting)
   )
 }

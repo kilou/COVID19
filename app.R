@@ -99,7 +99,7 @@ ui <- shinyUI(fluidPage(
           column(width = 6,
 
             # Output: Plot of the data
-            plotOutput("plot_ntot"),
+            plotOutput("plot_nhos"),
 
             plotOutput("plot_nicu")
 
@@ -173,7 +173,7 @@ ui <- shinyUI(fluidPage(
 
             column(6,
 
-              h3("Proportion of incident cases that will require IC",
+              h3("Proportion of hospitalized patients that will require IC",
                  align = "center"),
 
               fluidRow(
@@ -232,7 +232,7 @@ ui <- shinyUI(fluidPage(
 
             column(6,
 
-              h3("Time between detection and admission", align = "center"),
+              h3("Time lag between hospital admission and ICU transfer", align = "center"),
 
               fluidRow(
 
@@ -280,7 +280,7 @@ ui <- shinyUI(fluidPage(
 
             column(6,
 
-              h3("Length of stay", align = "center"),
+              h3("Length of stay in ICU", align = "center"),
 
               fluidRow(
 
@@ -377,13 +377,13 @@ ui <- shinyUI(fluidPage(
           # uiOutput("pars"),
           # uiOutput("data"),
           # uiOutput("days"),
-          # uiOutput("pred_ntot")
+          # uiOutput("pred_nhos")
 
           #################
 
             column(3,
 
-              numericInput(inputId = "cintot",
+              numericInput(inputId = "cinhos",
                            label = "CI length for #cases",
                            value = 0.9,
                            min = 0,
@@ -407,7 +407,7 @@ ui <- shinyUI(fluidPage(
 
           fluidRow(
 
-            plotOutput("plot_fc_ntot")
+            plotOutput("plot_fc_nhos")
 
           ),
 
@@ -488,14 +488,14 @@ server <- function(input, output, session) {
       stop("Data file must have at least three columns")
     } else {
       df <- df[, 1:3]
-      names(df) <- c("date0", "ntot", "nicu")
+      names(df) <- c("date0", "nhos", "nicu")
     }
 
     df$date <- as.Date(df$date0, format = input$date_format)
-    df$ntot <- as.integer(df$ntot)
+    df$nhos <- as.integer(df$nhos)
     df$nicu <- as.integer(df$nicu)
 
-    df <- df[c("date0", "date", "ntot", "nicu")]
+    df <- df[c("date0", "date", "nhos", "nicu")]
 
     return(df)
 
@@ -505,8 +505,8 @@ server <- function(input, output, session) {
 
     tbl <- input_data()
     tbl$date <- as.character(tbl$date)
-    names(tbl) <- c("Date (input)", "Date (formated)", "Cumulative cases",
-                    "N ICU")
+    names(tbl) <- c("Date (input)", "Date (formated)", "Hospital (cumul.)",
+                    "ICU (cumul.)")
 
     if(input$disp == "head") {
       return(head(tbl))
@@ -517,10 +517,10 @@ server <- function(input, output, session) {
 
   })
 
-  output$plot_ntot <- renderPlot({
+  output$plot_nhos <- renderPlot({
 
     input_data() %>%
-      ggplot(aes(x = date, y = ntot)) +
+      ggplot(aes(x = date, y = nhos)) +
       geom_col(fill = "#428bca") +
       theme_minimal() +
       labs(x = "Date", y = "Cumulative cases")
@@ -650,17 +650,17 @@ server <- function(input, output, session) {
 
   # output$pars <- renderTable({ pars() })
   # output$data <- renderTable({ input_data() })
-  # output$pred_ntot <- renderTable({ rv$pred$ntot })
+  # output$pred_nhos <- renderTable({ rv$pred$nhos })
   # output$days <- renderText({ paste(as.character(rv$days), collapse=" ") })
 
   #####################
 
-  output$plot_fc_ntot <- renderPlot({
+  output$plot_fc_nhos <- renderPlot({
 
     validate(need(rv$pred, ""))
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cintot) / 2
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cinhos) / 2
     pred <- rv$pred
-    plot.covid(pred, what = "ntot", prob = p)
+    plot.covid(pred, what = "nhos", prob = p)
 
   })
 
@@ -675,17 +675,17 @@ server <- function(input, output, session) {
 
   fc_table <- reactive({
 
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cintot) / 2
-    ntot <- t(apply(rv$pred$ntot, 2, quantile, prob = p))
-    colnames(ntot) <- c("ntot", colnames(ntot)[2:3])
-    ntot <- cbind(date = rownames(ntot),
-                  as.data.frame(ntot, check.names = FALSE))
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinhos) / 2
+    nhos <- t(apply(rv$pred$nhos, 2, quantile, prob = p))
+    colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
+    nhos <- cbind(date = rownames(nhos),
+                  as.data.frame(nhos, check.names = FALSE))
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
     nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = rownames(nbed),
                   as.data.frame(nbed, check.names = FALSE))
-    list(ntot = ntot, nbed = nbed)
+    list(nhos = nhos, nbed = nbed)
 
   })
 
@@ -708,11 +708,11 @@ server <- function(input, output, session) {
 
   fc_table <- reactive({
 
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cintot) / 2
-    ntot <- t(apply(rv$pred$ntot, 2, quantile, prob = p))
-    colnames(ntot) <- c("ntot", colnames(ntot)[2:3])
-    ntot <- cbind(date = rownames(ntot),
-                  as.data.frame(ntot, check.names = FALSE))
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinhos) / 2
+    nhos <- t(apply(rv$pred$nhos, 2, quantile, prob = p))
+    colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
+    nhos <- cbind(date = rownames(nhos),
+                  as.data.frame(nhos, check.names = FALSE))
 
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
     nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
@@ -720,7 +720,7 @@ server <- function(input, output, session) {
     nbed <- cbind(date = rownames(nbed),
                   as.data.frame(nbed, check.names = FALSE))
 
-    list(ntot = ntot, nbed = nbed)
+    list(nhos = nhos, nbed = nbed)
 
   })
 
