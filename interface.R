@@ -3,6 +3,7 @@ library(readxl)
 library(dplyr)
 library(ggplot2)
 library(snowfall)
+library(writexl)
 
 options(stringsAsFactors = FALSE)
 
@@ -403,8 +404,13 @@ ui <- shinyUI(fluidPage(
 
             plotOutput("plot_fc_nbed")
 
-          )
+          ),
 
+          fluidRow(
+
+            downloadButton("dl_forcasts", "Download forcasts")
+
+          )
 
         )
 
@@ -421,7 +427,7 @@ ui <- shinyUI(fluidPage(
           div(p(strong("Creators:"), "Aziz Chaouch, Jérôme Pasquier,",
                 "Valentin Rousson and Bastien Trächsel"), 
               p(strong("R Packages:"), "dplyr, ggplot2, readxl,
-                shiny, snowfall"),
+                shiny, snowfall, writexl"),
               style = "font-family: courier;")
 
         )
@@ -652,6 +658,47 @@ server <- function(input, output, session) {
     plot.covid(pred, what = "nbed", prob = p)
 
   })
+
+  fc_table <- reactive({
+
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cintot) / 2
+    ntot <- t(apply(rv$pred$ntot, 2, quantile, prob = p))
+    colnames(ntot) <- c("ntot", colnames(ntot)[2:3])
+    ntot <- cbind(date = rownames(ntot),
+                  as.data.frame(ntot, check.names = FALSE))
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
+    nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
+    colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
+    nbed <- cbind(date = rownames(nbed),
+                  as.data.frame(nbed, check.names = FALSE))
+    list(ntot = ntot, nbed = nbed)
+
+  })
+
+  output$dl_forcasts <- downloadHandler(
+    filename = function() {
+      paste0("forcasts_", format(Sys.time(), "%Y%m%d%H%M%S"), ".xlsx")
+    },
+    content = function(file) {write_xlsx(fc_table(), path = file)}
+  )
+
+  fc_table <- reactive({
+
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cintot) / 2
+    ntot <- t(apply(rv$pred$ntot, 2, quantile, prob = p))
+    colnames(ntot) <- c("ntot", colnames(ntot)[2:3])
+    ntot <- cbind(date = rownames(ntot),
+                  as.data.frame(ntot, check.names = FALSE))
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
+    nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
+    colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
+    nbed <- cbind(date = rownames(nbed),
+                  as.data.frame(nbed, check.names = FALSE))
+    list(ntot = ntot, nbed = nbed)
+
+  })
+
+
 
 }
 
