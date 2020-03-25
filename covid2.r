@@ -34,7 +34,7 @@ histo(pic,p)
 
 # Lag between COVID-19 test and ICU admission
 mlag <- 8  # mean lag
-vlag <- 15 # variability. vlag must be >=mlag with vlag=mlag corresponding to Poisson model
+vlag <- 12 # variability. vlag must be >=mlag with vlag=mlag corresponding to Poisson model
 lag <- rlag(1e06,mlag,vlag)
 histo(lag,p)
 

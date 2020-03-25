@@ -10,7 +10,7 @@ options(stringsAsFactors = FALSE)
 
 rm(list = ls())
 
-# Source necessary functions for covid-19 forcasts
+# Source necessary functions for covid-19 forecasts
 source("functions.r")
 
 # Load known parameters
@@ -332,7 +332,7 @@ ui <- shinyUI(fluidPage(
 
 # -------------------------------- FORECASTS -------------------------------- #
 
-      tabPanel("Forcasts",
+      tabPanel("Forecasts",
 
         fluidPage(
 

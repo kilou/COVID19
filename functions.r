@@ -45,7 +45,7 @@ rlos <- function(
 # ------------------------------------------------------------------------------------------------------
 # Histogram for parameters
 histo <- function(x,prob){
-  h <- hist(x,breaks=50,xlab="",ylab="",main="",col="#428bca",yaxt="n",yaxs="i",freq=FALSE)
+  h <- hist(x,breaks=30,xlab="",ylab="",main="",col="#428bca",yaxt="n",yaxs="i",freq=FALSE)
   if(!is.null(prob)){
     stopifnot(length(prob)==3)
     q <- quantile(x,probs=prob)
