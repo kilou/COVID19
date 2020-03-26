@@ -11,7 +11,9 @@ reqpack(c("shiny",
           "ggplot2",
           "snowfall",
           "writexl",
-          "shinybusy"))
+          "shinybusy",
+          "rhandsontable",
+          "plotly"))
 
 options(stringsAsFactors = FALSE)
 
@@ -337,6 +339,69 @@ ui <- shinyUI(fluidPage(
 
       ),
 
+# ------------ NEW PARMETERS PANEL - DEV ------------------------------------ #
+
+      tabPanel("Parameters_dev",
+
+        fluidPage(
+
+          h3("Parameters"),
+
+          rHandsontableOutput("pars_tbl"),
+
+          h3("Visualization"),
+
+          fluidRow(
+
+            column(4,
+
+              selectInput(inputId = "spar",
+                          label = "Parameter",
+                          choices = list(lam = "lam",
+                                         pic = "pic",
+                                         lag = "lag",
+                                         los = "los"))
+
+            ),
+
+            column(4,
+
+              uiOutput("sdate_ui")
+
+            ),
+
+            column(4,
+
+              numericInput(inputId = "cipar",
+                                   label = "Interval length",
+                                   value = 0.9,
+                                   min = 0,
+                                   max = 1,
+                                   step = 0.05)
+            )
+
+          ),
+
+          fluidRow(
+
+            column(6,
+
+              plotOutput("par_hist")
+
+            ),
+
+            column(6,
+
+              plotlyOutput("par_evol")
+
+            )
+
+          )
+
+        )
+
+      ),
+
 # -------------------------------- FORECASTS -------------------------------- #
 
       tabPanel("Forecasts",
@@ -616,6 +681,96 @@ server <- function(input, output, session) {
     pars$vlos[i] = input$vlos
 
     return(pars)
+
+  })
+
+# ----------------------------- PARAMETERS DEV ------------------------------ #
+
+  pars2 <- reactive({
+    if (is.null(input$pars_tbl)) {
+      DF = pars0
+    } else {
+      DF = hot_to_r(input$pars_tbl)
+    }
+    DF
+  })
+
+  output$pars_tbl <- renderRHandsontable({
+
+      if (!is.null(pars2())) {
+
+        rhandsontable(pars2(), useTypes = TRUE, stretchH = "all") %>%
+          hot_validate_numeric(cols = "mlam", min = 1) %>%
+          hot_validate_numeric(cols = "vlam", min = 0) %>%
+          hot_validate_numeric(cols = "mpic", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vpic", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "mlag", min = 0) %>%
+          hot_validate_numeric(cols = "vlag", min = 0) %>%
+          hot_validate_numeric(cols = "mlos", min = 0) %>%
+          hot_validate_numeric(cols = "vlos", min = 0)
+
+      }
+
+  })
+
+  observe({
+
+    if(any(pars2()$vlag < pars2()$mlag)) {
+
+      showModal(modalDialog(
+        title = "Error in lag parameter",
+        "The variance has to be equal or greater to the parmeter",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+
+    }
+
+  })
+
+  observe({
+
+    if(any(pars2()$vlos < pars2()$mlos)) {
+
+      showModal(modalDialog(
+        title = "Error in los parameter",
+        "The variance has to be equal or greater to the parmeter",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+
+    }
+
+  })
+
+  output$sdate_ui <- renderUI({
+
+    selectInput(inputId = "sdate",
+                label = "Date",
+                choices = pars2()$date)
+
+  })
+
+  output$par_hist <- renderPlot({
+
+    p <- input$spar
+    d <- input$sdate
+    mv <- pars2()[pars2()$date == d, paste0(c("m", "v"), p)]
+    v <- get(paste0("r", p))(1e06, mv[, 1], mv[, 2])
+    q <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipar) / 2
+    validate(need(v, ""))
+    histo(v, q)
+
+  })
+
+  output$par_evol <- renderPlotly({
+
+    validate(need(pars2(), ""))
+    p <- paste0("m", input$spar)
+    plt <- ggplot(pars2(), aes_string(x = "date", y = p)) +
+      geom_point() +
+      geom_line()
+    ggplotly(plt)
 
   })
 
