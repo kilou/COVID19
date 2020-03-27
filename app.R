@@ -1,23 +1,25 @@
-reqpack<-function(X){
-  pak_failed<-which(!unlist(lapply(X,require,character.only=T)))
+rm(list = ls())
+
+reqpack <- function(X) {
+  pak_failed <- which(!unlist(lapply(X, require, character.only = TRUE)))
   if(length(pak_failed)>=1){
-    install.packages(X[pak_failed],repos='https://stat.ethz.ch/CRAN/')
-    lapply(X[pak_failed],require,character.only=T)
+    install.packages(X[pak_failed], repos = "https://stat.ethz.ch/CRAN/")
+    lapply(X[pak_failed], require, character.only = TRUE)
   }
 }
-reqpack(c("shiny",
-          "readxl",
-          "dplyr",
-          "ggplot2",
-          "snowfall",
-          "writexl",
-          "shinybusy",
-          "rhandsontable",
-          "plotly"))
+pkg_list <- c("dplyr",
+              "ggplot2",
+              "plotly",
+              "readxl",
+              "rhandsontable",
+              "shiny",
+              "shinybusy",
+              "snowfall",
+              "tippy",
+              "writexl")
+reqpack(pkg_list)
 
 options(stringsAsFactors = FALSE)
-
-rm(list = ls())
 
 # Source necessary functions for covid-19 forecasts
 source("functions.r")
@@ -118,234 +120,23 @@ ui <- shinyUI(fluidPage(
 
       ),
 
+# -------------------------------- PARMETERS -------------------------------- #
+
       tabPanel("Parameters",
 
         fluidPage(
 
-# -------------------------- PARAMETER : FIRST ROW -------------------------- #
-
-          fluidRow(
-
-# ------------------------------ LAM PARAMETER ------------------------------ #
-
-            column(6,
-
-              h3("Exponential growth parameter", align = "center"),
-
-              fluidRow(
-
-                column(3,
-
-                  numericInput(inputId = "mlam",
-                               label = "Value",
-                               value = pars0$mlam[nrow(pars0)],
-                               min = 1,
-                               max = Inf,
-                               step = 0.01)
-
-                ),
-
-                column(6,
-
-                  sliderInput(inputId = "vlam",
-                              label = "Variance",
-                              value = pars0$vlam[nrow(pars0)],
-                              min = 0,
-                              max = max(0.1, pars0$vlam[nrow(pars0)]))
-
-                ),
-
-                column(3,
-
-                  numericInput(inputId = "cilam",
-                               label = "CI length",
-                               value = 0.9,
-                               min = 0,
-                               max = 1,
-                               step = 0.05)
-
-                )
-
-              ),
-
-              fluidRow(
-
-                plotOutput("plot_lam", height = "300px")
-
-              ),
-
-              style = "margin-bottom:30px; border:1px solid; padding:20px;"
-
-            ),
-
-# ------------------------------ PIC PARAMETER ------------------------------ #
-
-            column(6,
-
-              h3("Proportion of hospitalized patients that will require IC",
-                 align = "center"),
-
-              fluidRow(
-
-                column(3,
-
-                  numericInput(inputId = "mpic",
-                               label = "Value",
-                               value = pars0$mpic[nrow(pars0)],
-                               min = 0,
-                               max = 1,
-                               step = 0.01)
-
-                ),
-
-                column(6,
-
-                  sliderInput(inputId = "vpic",
-                              label = "Variance",
-                              value = pars0$vpic[nrow(pars0)],
-                              min = 0,
-                              max = max(0.1, pars0$vpic[nrow(pars0)]))
-
-                ),
-
-                column(3,
-
-                  numericInput(inputId = "cipic",
-                               label = "CI length",
-                               value = 0.9,
-                               min = 0,
-                               max = 1,
-                               step = 0.05)
-
-                )
-
-              ),
-
-              fluidRow(
-
-                plotOutput("plot_pic", height = "300px")
-
-              ),
-
-              style = "margin-bottom:30px; border:1px solid; padding:20px;"
-
+          h3("Parameters",
+            span(icon("question-circle"), id = "pars_info"),
+            tippy_this(
+              elementId = "pars_info",
+              tooltip = "pars_info.html" %>% {readChar(., file.info(.)$size)},
+              allowHTML = TRUE,
+              placement = "right",
+              maxWidth = "none",
+              theme = "light"
             )
-
           ),
-
-# ------------------------- PARAMETER : SECOND ROW -------------------------- #
-
-          fluidRow(
-
-# ------------------------------ LAG PARAMETER ------------------------------ #
-
-            column(6,
-
-              h3("Time lag between hospital admission and ICU transfer", align = "center"),
-
-              fluidRow(
-
-                column(3,
-
-                  numericInput(inputId = "mlag",
-                               label = "Value",
-                               value = pars0$mlag[nrow(pars0)],
-                               min = 0,
-                               max = Inf,
-                               step = 1)
-
-                ),
-
-                column(6,
-
-                  uiOutput("vlag_ui")
-
-                ),
-
-                column(3,
-
-                  numericInput(inputId = "cilag",
-                               label = "CI length",
-                               value = 0.9,
-                               min = 0,
-                               max = 1,
-                               step = 0.05)
-
-                )
-
-              ),
-
-              fluidRow(
-
-                plotOutput("plot_lag", height = "300px")
-
-              ),
-
-              style = "margin-bottom:30px; border:1px solid; padding:20px;"
-
-            ),
-
-# ------------------------------ LOS PARAMETER ------------------------------ #
-
-            column(6,
-
-              h3("Length of stay in ICU", align = "center"),
-
-              fluidRow(
-
-                column(3,
-
-                  numericInput(inputId = "mlos",
-                               label = "Value",
-                               value = pars0$mlos[nrow(pars0)],
-                               min = 0,
-                               max = Inf,
-                               step = 1)
-
-                ),
-
-                column(6,
-
-                  uiOutput("vlos_ui")
-
-                ),
-
-                column(3,
-
-                  numericInput(inputId = "cilos",
-                               label = "CI length",
-                               value = 0.9,
-                               min = 0,
-                               max = 1,
-                               step = 0.05)
-
-                )
-
-              ),
-
-              fluidRow(
-
-                plotOutput("plot_los", height = "300px")
-
-              ),
-
-              style = "margin-bottom:30px; border:1px solid; padding:20px;"
-
-            )
-
-          )
-
-        )
-
-      ),
-
-# ------------ NEW PARMETERS PANEL - DEV ------------------------------------ #
-
-      tabPanel("Parameters_dev",
-
-        fluidPage(
-
-          h3("Parameters"),
 
           rHandsontableOutput("pars_tbl"),
 
@@ -353,24 +144,16 @@ ui <- shinyUI(fluidPage(
 
           fluidRow(
 
-            column(4,
+            column(2,
 
               selectInput(inputId = "spar",
                           label = "Parameter",
                           choices = list(lam = "lam",
                                          pic = "pic",
                                          lag = "lag",
-                                         los = "los"))
+                                         los = "los")),
 
-            ),
-
-            column(4,
-
-              uiOutput("sdate_ui")
-
-            ),
-
-            column(4,
+              uiOutput("sdate_ui"),
 
               numericInput(inputId = "cipar",
                                    label = "Interval length",
@@ -378,19 +161,16 @@ ui <- shinyUI(fluidPage(
                                    min = 0,
                                    max = 1,
                                    step = 0.05)
-            )
 
-          ),
+            ),
 
-          fluidRow(
-
-            column(6,
+            column(5,
 
               plotOutput("par_hist")
 
             ),
 
-            column(6,
+            column(5,
 
               plotlyOutput("par_evol")
 
@@ -503,8 +283,7 @@ ui <- shinyUI(fluidPage(
 
           div(p(strong("Creators:"), "Aziz Chaouch, Jérôme Pasquier,",
                 "Valentin Rousson and Bastien Trächsel"), 
-              p(strong("R Packages:"), "dplyr, ggplot2, readxl,
-                shiny, shinybusy, snowfall, writexl"),
+              p(strong("R Packages:"), paste(pkg_list, collapse = ", ")),
               style = "font-family: courier;")
 
         )
@@ -611,95 +390,22 @@ server <- function(input, output, session) {
 
 # ------------------------------- PARAMETERS -------------------------------- #
 
-  output$vlag_ui <- renderUI({
-
-    sliderInput(inputId = "vlag",
-                label = "Variance",
-                value = max(input$mlag, pars0$vlag[nrow(pars0)]),
-                min = input$mlag,
-                max = max(3 * input$mlag, pars0$vlag[nrow(pars0)]))
-
-  })
-
-  output$vlos_ui <- renderUI({
-
-    sliderInput(inputId = "vlos",
-                label = "Variance",
-                value = max(input$mlos, pars0$vlos[nrow(pars0)]),
-                min = input$mlos,
-                max = max(3 * input$mlos, pars0$vlos[nrow(pars0)]))
-
-  })
-
-  output$plot_lam <- renderPlot({
-
-    lam <- rlam(1e06, input$mlam, input$vlam)
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilam) / 2
-    validate(need(lam, ""))
-    histo(lam, p)
-
-  })
-
-  output$plot_pic <- renderPlot({
-
-    pic <- rpic(1e06, input$mpic, input$vpic)
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipic) / 2
-    validate(need(pic, ""))
-    histo(pic, p)
-
-  })
-
-  output$plot_lag <- renderPlot({
-
-    lag <- rlag(1e06, input$mlag, input$vlag)
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilag) / 2
-    validate(need(lag, ""))
-    histo(lag, p)
-
-  })
-
-  output$plot_los <- renderPlot({
-
-    los <- rlos(1e06, input$mlos, input$vlos)
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cilos) / 2
-    validate(need(los, ""))
-    histo(los, p)
-
-  })
-
   pars <- reactive({
 
-    pars <- pars0
-    i <- nrow(pars)
-    pars$mlam[i] = input$mlam
-    pars$vlam[i] = input$vlam
-    pars$mpic[i] = input$mpic
-    pars$vpic[i] = input$vpic
-    pars$mlag[i] = input$mlag
-    pars$vlag[i] = input$vlag
-    pars$mlos[i] = input$mlos
-    pars$vlos[i] = input$vlos
-
-    return(pars)
-
-  })
-
-# ----------------------------- PARAMETERS DEV ------------------------------ #
-
-  pars2 <- reactive({
     if (is.null(input$pars_tbl)) {
       DF = pars0
     } else {
       DF = hot_to_r(input$pars_tbl)
     }
-    DF
+    DF %>% arrange(date)
+
   })
 
   output$pars_tbl <- renderRHandsontable({
 
-      if (!is.null(pars2())) {
+      if (!is.null(pars())) {
 
-        rhandsontable(pars2(), useTypes = TRUE, stretchH = "all") %>%
+        rhandsontable(pars(), useTypes = TRUE, stretchH = "all") %>%
           hot_validate_numeric(cols = "mlam", min = 1) %>%
           hot_validate_numeric(cols = "vlam", min = 0) %>%
           hot_validate_numeric(cols = "mpic", min = 0, max = 1) %>%
@@ -715,7 +421,7 @@ server <- function(input, output, session) {
 
   observe({
 
-    if(any(pars2()$vlag < pars2()$mlag)) {
+    if(any(pars()$vlag < pars()$mlag, na.rm = TRUE)) {
 
       showModal(modalDialog(
         title = "Error in lag parameter",
@@ -730,7 +436,7 @@ server <- function(input, output, session) {
 
   observe({
 
-    if(any(pars2()$vlos < pars2()$mlos)) {
+    if(any(pars()$vlos < pars()$mlos, na.rm = TRUE)) {
 
       showModal(modalDialog(
         title = "Error in los parameter",
@@ -747,7 +453,7 @@ server <- function(input, output, session) {
 
     selectInput(inputId = "sdate",
                 label = "Date",
-                choices = pars2()$date)
+                choices = pars()$date)
 
   })
 
@@ -755,7 +461,8 @@ server <- function(input, output, session) {
 
     p <- input$spar
     d <- input$sdate
-    mv <- pars2()[pars2()$date == d, paste0(c("m", "v"), p)]
+    i <- pars()$date %>% {!is.na(.) & . == d}
+    mv <- pars()[i, paste0(c("m", "v"), p)]
     v <- get(paste0("r", p))(1e06, mv[, 1], mv[, 2])
     q <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipar) / 2
     validate(need(v, ""))
@@ -765,9 +472,9 @@ server <- function(input, output, session) {
 
   output$par_evol <- renderPlotly({
 
-    validate(need(pars2(), ""))
+    validate(need(pars(), ""))
     p <- paste0("m", input$spar)
-    plt <- ggplot(pars2(), aes_string(x = "date", y = p)) +
+    plt <- ggplot(pars(), aes_string(x = "date", y = p)) +
       geom_point() +
       geom_line()
     ggplotly(plt)
@@ -847,7 +554,7 @@ server <- function(input, output, session) {
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = rownames(nbed),
                   as.data.frame(nbed, check.names = FALSE))
-    list(nhos = nhos, nbed = nbed)
+    list(nhos = nhos, nbed = nbed, pars = pars())
 
   })
 
@@ -865,24 +572,6 @@ server <- function(input, output, session) {
     req(rv$pred)
 
     downloadButton("dl_forcasts", "Download")
-
-  })
-
-  fc_table <- reactive({
-
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinhos) / 2
-    nhos <- t(apply(rv$pred$nhos, 2, quantile, prob = p))
-    colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
-    nhos <- cbind(date = rownames(nhos),
-                  as.data.frame(nhos, check.names = FALSE))
-
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
-    nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
-    colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
-    nbed <- cbind(date = rownames(nbed),
-                  as.data.frame(nbed, check.names = FALSE))
-
-    list(nhos = nhos, nbed = nbed)
 
   })
 
