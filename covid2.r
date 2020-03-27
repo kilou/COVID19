@@ -6,11 +6,16 @@ source("functions.r")
 #shiny::runApp("app.R")
 
 # Load data and parameters
-# Data available on https://www.vd.ch/toutes-les-actualites/hotline-et-informations-sur-le-coronavirus/
 library(readxl)
-data <- as.data.frame(read_xlsx("data.xlsx"))
+#data <- as.data.frame(read_xlsx("data.xlsx"))
+#data$date <- conv(data$date)
+data <- import.covid(
+  input.file="20.03.26 - Données hop COVID - anonymisées.xlsx",
+  input.sheet="données",
+  output.file=NULL,
+  start.date="25.02.2020"
+)
 pars <- as.data.frame(read_xlsx("params.xlsx"))
-data$date <- conv(data$date)
 pars$date <- conv(pars$date)
 today <- data$date[nrow(data)]
 

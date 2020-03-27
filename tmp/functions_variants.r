@@ -116,47 +116,6 @@ plot.covid <- function(
 }
 
 # ------------------------------------------------------------------------------------------------------
-# Calculate cumulative count of hospitalized patients (nhos) and daily count of patients in ICU (nicu)
-# using individual patient data
-import.covid <- function(
-  input.file="20.03.26 - Données hop COVID - anonymisées.xlsx",
-  input.sheet="données",
-  output.file="data.xlsx", # if NULL, return an object called data
-  start.date="24.02.2020"
-){
-  # Some options
-  start.date <- conv(start.date)
-  
-  # Read individual patient data
-  raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=input.sheet))
-  id <- raw[,"No interne*"]
-  age <- raw[,"Age"]; age[age==0] <- NA
-  sex <- factor(raw[,"sex"],levels=c("M","F"))
-  hos_in <- conv(format(as.Date(raw[,"Date entree"]),"%d.%m.%Y"))
-  icu_in <- conv(format(as.Date(raw[,"debut si"]),"%d.%m.%Y"))
-  icu_out <- conv(format(as.Date(raw[,"fin si"]),"%d.%m.%Y"))
-  hos_out <- conv(format(as.Date(raw[,"date sortie"]),"%d.%m.%Y"))
-  dead <- raw[,"deces"]
-  
-  # Calculate daily cumulative count of hospitalized patients and daily nb of patients in ICU
-  days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
-  ndays <- length(days)
-  nhos <- nicu <- numeric(ndays)
-  for(j in 1:ndays){
-    nhos[j] <- sum(hos_in<=days[j])
-    nicu[j] <- sum(icu_in<=days[j] & is.na(icu_out),na.rm=T) + sum(icu_in<=days[j] & icu_out>=days[j],na.rm=T)
-  }
-  data <- data.frame(date=days,nhos=nhos,nicu=nicu)
-  data <- subset(data,date>=start.date)
-  if(!is.null(output.file)){
-    data$date <- format(data$date,"%d.%m.%Y")
-    writexl::write_xlsx(data,path=output.file)
-  } else {
-    data
-  }
-}
-
-# ------------------------------------------------------------------------------------------------------
 # Forecast nb of ICU beds
 pred.covid <- function(
   nday,     # nb of days to forecast
@@ -166,10 +125,8 @@ pred.covid <- function(
   ncpu,     # nb of parallel processes (use 1 for serial compiutations)
   seed=1234 # seed for reproducible computations
 ){
+  method <- "pic_at_icu_entry"
   set.seed(seed)
-  
-  # Check consistency of dates
-  if(min(pars$date)>min(data$date)){stop("First date defining parameters must be anterior or equal to first date in the data!")}
   
   # Some useful things
   today <- data$date[nrow(data)]       # today i.e. last date entered in data
@@ -186,7 +143,7 @@ pred.covid <- function(
   vlag <- pars$vlag[ind]
   mlos <- pars$mlos[ind]
   vlos <- pars$vlos[ind]
-  #pac <- pars$pac[ind]
+  if(method=="pac"){pac <- pars$pac[ind]}
 
   # Fill-in observed cumulative count of hospitalized patients
   nhos <- matrix(nrow=nsim,ncol=j+nday)
@@ -201,89 +158,49 @@ pred.covid <- function(
   for(k in 1:(j+nday-1)){ninc[,k+1] <- nhos[,k+1]-nhos[,k]}
   if(sum(ninc<0)>0){stop("Some incident counts are negative!")}
   
+  if(method%in%c("pic_at_hos_entry","pac")){
+    # Calculate incident cases that will require IC at some point
+    for(k in 1:(j+nday)){ninc[,k] <- round(rpic(nsim,mpic[k],vpic[k])*ninc[,k])}
+  }
+  
   # Calculate nb of ICU beds required (function to be parallelized)
-  # ------------------------------------------------------------------------------------------------------
-  fun_pic_on_hos_entry <- function(s){
-    # Simulate nb of patient hospitalized on day j that will require IC at some point
-    pic <- unlist(mapply(rpic,n=1,mpic=mpic,vpic=vpic,SIMPLIFY=FALSE))
-    npat <- round(pic*ninc[s,])
-    
+  fun <- function(s){
+    npat <- ninc[s,] # nb of patient hospitalized on day j that will require IC at some point
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
     lag <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE))    # ICU lag for these patients
     los <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE))    # length of stay in ICU for these patients
     
     # Define ICU day-in and day-out for these patients
     icu.in <- hos.in+lag
-    icu.out <- icu.in+los
     
-    # Fill-in bed occupancy matrix in ICU
-    occ <- matrix(0,nrow=sum(npat),ncol=j+nday)
-    for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(icu.in[i]:icu.out[i]))] <- 1}
+    if(method=="pic_at_hos_entry"){
+      icu.out <- icu.in+los-1
+    }
     
-    # Return daily nb of occupied ICU beds
-    apply(occ,2,sum)
-  }
-  
-  # ------------------------------------------------------------------------------------------------------
-  fun_pic_on_icu_entry <- function(s){
-    npat <- ninc[s,] # nb of new hospitalized patients on each day (no matter if they will need IC or not)
-    hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
-    lag <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE))    # ICU lag for these patients (assuming all hospitalized patients will require IC at some point...)
-    los <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE))    # length of stay in ICU for these patients
-    
-    # Define theoretical ICU day-in and day-out for all hospitalized patients
-    icu.in <- hos.in+lag
-    icu.out <- icu.in+los
-    
-    # Only accept a proportion "pic" of hospitalized patients in ICU on the day of their theoretical ICU admission
-    pic <- unlist(mapply(rpic,n=1,mpic=mpic,vpic=vpic,SIMPLIFY=FALSE)) # simulated pic on each day
-    for(k in 1:(j+nday)){
-      sel <- which(icu.in==k); nsel <- length(sel)
-      if(nsel>0){
-        accept <- rbinom(nsel,size=1,prob=pic[k])
-        icu.in[sel] <- icu.in[sel]*accept    # all patients with icu.in=0 are not accepted
-        icu.out[sel] <- icu.out[sel]*accept  # all patients with icu.out=0 are not accepted
+    if(method=="pic_at_icu_entry"){
+      icu.out <- icu.in+los-1
+      for(k in 1:(j+nday)){
+        sel <- which(icu.in==k); nsel <- length(sel)
+        if(nsel>0){
+          pic <- rbinom(nsel,size=1,prob=rpic(1,mpic[k],vpic[k]))
+          icu.in[sel] <- icu.in[sel]*pic
+          icu.out[sel] <- icu.out[sel]*pic
+        }
       }
     }
     
-    # Restrict attention to patients that will be accepted in ICU
-    icu.in <- icu.in[icu.in>0]
-    icu.out <- icu.out[icu.out>0]
-    
-    # Fill-in bed occupancy matrix in ICU
-    occ <- matrix(0,nrow=length(icu.in),ncol=j+nday)
-    for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(icu.in[i]:icu.out[i]))] <- 1}
-    
-    # Return daily nb of occupied ICU beds
-    apply(occ,2,sum)
-  }
-  
-  # ------------------------------------------------------------------------------------------------------
-  fun_pic_on_hos_entry_with_pac <- function(s){
-    # Simulate nb of patient hospitalized on day j that will require IC at some point
-    pic <- unlist(mapply(rpic,n=1,mpic=mpic,vpic=vpic,SIMPLIFY=FALSE))
-    npat <- round(pic*ninc[s,])
-    
-    hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
-    lag <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE))    # ICU lag for these patients
-    los <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE))    # length of stay in ICU for these patients
-    
-    # Define ICU day-in for these patients
-    icu.in <- hos.in+lag
-    
-    # Only accept a proportion "pac" of patients in ICU on the day of their ideal ICU admission. Put non-accepted patient in a queue
-    for(k in 1:(j+nday)){
-      sel <- which(icu.in==k); nsel <- length(sel) # select patients that should theoretically be admitted to ICU on day k
-      if(nsel>0){
-        acc <- rbinom(nsel,size=1,prob=pac[k])
-        ref <- sel[which(acc==0)]    # identify patients that will be refused on day k
-        icu.in[ref] <- icu.in[ref]+1 # set these patients on queue and make them come back on day k+1
+    if(method=="pac"){
+      for(k in 1:(j+nday)){
+        sel <- which(icu.in==k); nsel <- length(sel) # select patients that should theoretically be admitted to ICU on day k
+        if(nsel>0){
+          acc <- rbinom(nsel,size=1,prob=pac[k])
+          ref <- sel[which(acc==0)]    # identify patients that will be refused on day k
+          icu.in[ref] <- icu.in[ref]+1 # set these patients on queue and make them come back on day k+1
+        }
       }
+      icu.out <- icu.in+los-1
     }
-    
-    # Define ICU day-out for these patients (LOS not affected by queue...)
-    icu.out <- icu.in+los
-    
+
     # Fill-in bed occupancy matrix in ICU
     occ <- matrix(0,nrow=sum(npat),ncol=j+nday)
     for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(icu.in[i]:icu.out[i]))] <- 1}
@@ -293,7 +210,6 @@ pred.covid <- function(
   }
   
   # Run serial/parallel calculations
-  fun <- fun_pic_on_icu_entry
   if(ncpu>1){
     require(snowfall)
     sfInit(parallel=TRUE, cpus=ncpu)
