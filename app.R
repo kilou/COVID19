@@ -580,8 +580,16 @@ server <- function(input, output, session) {
 
   observeEvent(input$submit, {
 
-    if (any(is.na(pars()[c("date", "mlam", "vlam", "mpic", "vpic",
-                     "mlag", "vlag", "mlos", "vlos")]))) {
+    miss_param_0  <- any(is.na(pars()[c("date", "mpic", "vpic", "mlag",
+                                        "vlag", "mlos", "vlos")]))
+    i <- 1
+    if (rv$is_data_ready) {
+      b <- pars()$date <= max(input_data()$date)
+      if (any(b)) i <- max(which(b))
+    }
+    miss_param_1 <- any(is.na(pars()[i:nrow(pars()), c("mlam", "vlam")]))
+
+    if (miss_param_0 | miss_param_1) {
 
       showModal(modalDialog(
         title = "Error in parameter matrix",
