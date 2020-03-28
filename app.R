@@ -59,6 +59,12 @@ ui <- shinyUI(fluidPage(
                                  "text/comma-separated-values,text/plain",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
 
+            ##### DEBUG #####
+
+            uiOutput("data_exists"),
+
+            #################
+
             # Horizontal line ----
             tags$hr(),
 
@@ -229,7 +235,7 @@ ui <- shinyUI(fluidPage(
           # uiOutput("pars"),
           # uiOutput("data"),
           # uiOutput("days"),
-          # uiOutput("pred_nhos")
+          # uiOutput("pred_nhos"),
 
           #################
 
@@ -307,6 +313,9 @@ ui <- shinyUI(fluidPage(
 
 server <- function(input, output, session) {
 
+  # Reactive values
+  rv <- reactiveValues()
+
 # ---------------------------------- DATA ----------------------------------- #
 
   input_data <- reactive({
@@ -350,6 +359,13 @@ server <- function(input, output, session) {
 
     return(df)
 
+  })
+
+  # Is data ready?
+  rv$is_data_ready <- FALSE
+  observe({
+    req(input_data())
+    rv$is_data_ready <- TRUE
   })
 
   output$table_input_data <- renderTable({
@@ -397,7 +413,10 @@ server <- function(input, output, session) {
     } else {
       DF = hot_to_r(input$pars_tbl)
     }
-    DF %>% arrange(date)
+    if (all(!is.na(DF$date))) {
+      DF <- DF %>% arrange(date)
+    }
+    DF
 
   })
 
@@ -405,7 +424,25 @@ server <- function(input, output, session) {
 
       if (!is.null(pars())) {
 
-        rhandsontable(pars(), useTypes = TRUE, stretchH = "all") %>%
+        col_err_lag <- which(names(pars()) %in% c("mlag", "vlag")) - 1
+        row_err_lag <- which(pars()$vlag < pars()$mlag) - 1
+        col_err_los <- which(names(pars()) %in% c("mlos", "vlos")) - 1
+        row_err_los <- which(pars()$vlos < pars()$mlos) - 1
+        col_dis_lam <- which(names(pars()) %in% c("mlam", "vlam")) - 1
+        row_dis_lam <- as.integer(c())
+        if (rv$is_data_ready) {
+          if (nrow(input_data()) > 1) {
+            row_dis_lam <-
+              0:(max(which(pars()$date <= max(input_data()$date))) - 2)
+          }
+        }
+        rhandsontable(pars(), useTypes = TRUE, stretchH = "all",
+                      col_err_lag = col_err_lag, 
+                      row_err_lag = row_err_lag,
+                      col_err_los = col_err_los, 
+                      row_err_los = row_err_los,
+                      col_dis_lam = col_dis_lam, 
+                      row_dis_lam = row_dis_lam) %>%
           hot_validate_numeric(cols = "mlam", min = 1) %>%
           hot_validate_numeric(cols = "vlam", min = 0) %>%
           hot_validate_numeric(cols = "mpic", min = 0, max = 1) %>%
@@ -413,7 +450,37 @@ server <- function(input, output, session) {
           hot_validate_numeric(cols = "mlag", min = 0) %>%
           hot_validate_numeric(cols = "vlag", min = 0) %>%
           hot_validate_numeric(cols = "mlos", min = 0) %>%
-          hot_validate_numeric(cols = "vlos", min = 0)
+          hot_validate_numeric(cols = "vlos", min = 0) %>%
+          hot_cols(renderer = "
+            function(instance, td, row, col, prop, value, cellProperties) {
+              Handsontable.renderers.NumericRenderer.apply(this, arguments);
+              if (instance.params) {
+                  hclag = instance.params.col_err_lag
+                  hclag = hclag instanceof Array ? hclag : [hclag]
+                  hrlag = instance.params.row_err_lag
+                  hrlag = hrlag instanceof Array ? hrlag : [hrlag]
+                  hclos = instance.params.col_err_los
+                  hclos = hclos instanceof Array ? hclos : [hclos]
+                  hrlos = instance.params.row_err_los
+                  hrlos = hrlos instanceof Array ? hrlos : [hrlos]
+                  hclam = instance.params.col_dis_lam
+                  hclam = hclam instanceof Array ? hclam : [hclam]
+                  hrlam = instance.params.row_dis_lam
+                  hrlam = hrlam instanceof Array ? hrlam : [hrlam]
+              }
+              if (instance.params && hclag.includes(col) &&
+                    hrlag.includes(row)) {
+                td.style.background = 'red';
+              }
+              if (instance.params && hclos.includes(col) &&
+                    hrlos.includes(row)) {
+                td.style.background = 'red';
+              }
+              if (instance.params && hclam.includes(col) &&
+                    hrlam.includes(row)) {
+                td.style.background = 'lightgrey';
+              }
+            }")
 
       }
 
@@ -451,9 +518,16 @@ server <- function(input, output, session) {
 
   output$sdate_ui <- renderUI({
 
+    s <- NULL
+    if (rv$is_data_ready) {
+      b <- pars()$date <= max(input_data()$date)
+      if (any(b)) s <- pars()$date[max(which(b))]
+    }
+
     selectInput(inputId = "sdate",
                 label = "Date",
-                choices = pars()$date)
+                choices = pars()$date,
+                selected = s)
 
   })
 
@@ -474,9 +548,14 @@ server <- function(input, output, session) {
 
     validate(need(pars(), ""))
     p <- paste0("m", input$spar)
-    plt <- ggplot(pars(), aes_string(x = "date", y = p)) +
+    i <- 1
+    if (rv$is_data_ready & p == "mlam") {
+      b <- pars()$date <= max(input_data()$date)
+      if (any(b)) i <- max(which(b))
+    }
+    plt <- ggplot(pars()[i:nrow(pars()), ], aes_string(x = "date", y = p)) +
       geom_point() +
-      geom_line()
+      geom_step()
     ggplotly(plt)
 
   })
@@ -493,9 +572,6 @@ server <- function(input, output, session) {
                         format = "yyyy-mm-dd")
   })
 
-
-  rv <- reactiveValues()
-
   nday <- reactive({
 
     input$date_max - max(input_data()$date)
@@ -503,6 +579,20 @@ server <- function(input, output, session) {
   })
 
   observeEvent(input$submit, {
+
+    if (any(is.na(pars()[c("date", "mlam", "vlam", "mpic", "vpic",
+                     "mlag", "vlag", "mlos", "vlos")]))) {
+
+      showModal(modalDialog(
+        title = "Error in parameter matrix",
+        "The parameter matrix contains missing values",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+
+      return()
+
+    }
 
     show_modal_spinner() # show the modal window
 
