@@ -6,16 +6,11 @@ source("functions.r")
 #shiny::runApp("app.R")
 
 # Load data and parameters
-library(readxl)
-#data <- as.data.frame(read_xlsx("data.xlsx"))
-#data$date <- conv(data$date)
 data <- import.covid(
   input.file="20.03.26 - Données hop COVID - anonymisées.xlsx",
-  input.sheet="données",
-  output.file=NULL,
   start.date="25.02.2020"
 )
-pars <- as.data.frame(read_xlsx("params.xlsx"))
+pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
 pars$date <- conv(pars$date)
 today <- data$date[nrow(data)]
 
@@ -32,7 +27,7 @@ lam <- rlam(1e06,mlam,vlam)
 histo(lam,p)
 
 # Proportion of hospitalized patients that will require IC
-mpic <- 0.28  # median proportion
+mpic <- 0.2  # median proportion
 vpic <- 0.10  # variability
 pic <- rpic(1e06,mpic,vpic)
 histo(pic,p)
@@ -53,12 +48,10 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=60,nsim=2000,pars,data,ncpu=4)
+pred <- pred.covid(nday=10,nsim=2000,pars,data,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)
 
 # Plot nb ICU beds required
 plot.covid(pred,what="nbed",prob=p)
-
-
