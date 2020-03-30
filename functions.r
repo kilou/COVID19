@@ -143,10 +143,22 @@ import.ipd <- function(
 # Import data. Input file can be either a file with date, nhos and nicu columns or a file with individual patient data
 import.covid <- function(
   input.file="data.xlsx", # xlsx input data file
-  start.date="25.02.2020"  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+  start.date=NA,  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+  date.format="%d.%m.%Y"
 ){
-  start.date <- conv(start.date)
   
+  conv2 <- function(x, format="%d.%m.%Y") {
+    if (any(class(x) %in% c("POSIXct", "POSIXt"))) {
+      x <- as.Date(x)
+    } else if (any(class(x) %in% "character")) {
+      x <- conv(x, format = format)
+    } else if (!any(class(x) %in% "Date")) {
+      stop("Wrong date format")
+    }
+    return(x)
+  }
+
+
   # Detect file type (individual patient data or counts)
   sheets <- excel_sheets(input.file)
   nsheets <- length(sheets)
@@ -159,9 +171,9 @@ import.covid <- function(
   if(type=="ipd"){
     # Individual patient data
     id <- raw[,"No interne*"]
-    hos_in <- conv(format(as.Date(raw[,"arrivee_hopital"]),"%d.%m.%Y"))
-    icu_in <- conv(format(as.Date(raw[,"debut_soins_intensifs"]),"%d.%m.%Y"))
-    icu_out <- conv(format(as.Date(raw[,"fin_soins_intensifs"]),"%d.%m.%Y"))
+    hos_in <- conv2(raw[,"arrivee_hopital"],date.format)
+    icu_in <- conv2(raw[,"debut_soins_intensifs"],date.format)
+    icu_out <- conv2(raw[,"fin_soins_intensifs"],date.format)
     
     # Calculate daily cumulative count of hospitalized patients and daily nb of patients in ICU
     days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
@@ -175,9 +187,12 @@ import.covid <- function(
   } else {
     # Data with nhos and nicu
     data <- raw
-    data$date <- conv(data$date)
+    data$date <- conv2(data$date)
   }
-  data <- subset(data,date>=start.date)
+  if (!is.na(start.date)) {
+    start.date <- conv(start.date, format = date.format)
+    data <- subset(data,date>=start.date)
+  }
   data
 }
 

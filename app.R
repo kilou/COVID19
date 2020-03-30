@@ -51,41 +51,62 @@ ui <- shinyUI(fluidPage(
           br(),
 
           column(width = 2,
-              # Input: Select a file ----
+
+            h3("Import data",
+              span(icon("question-circle"), id = "data_info"),
+              tippy_this(
+                elementId = "data_info",
+                tooltip = "data_info.html" %>% {readChar(., file.info(.)$size)},
+                allowHTML = TRUE,
+                placement = "right",
+                maxWidth = "600px",
+                theme = "light"
+              )
+            ),
+
+            br(),
+
+            # Input: Select a file ----
             fileInput(inputId = "file1",
-                      label = "Choose data file\n(csv or xlsx)",
+                      # label = "Choose data file\n(csv or xlsx)",
+                      label = "Choose data file (xlsx)",
                       multiple = FALSE,
-                      accept = c("text/csv",
-                                 "text/comma-separated-values,text/plain",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                      # accept = c("text/csv",
+                                 # "text/comma-separated-values,text/plain",
+      # "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
+                      accept = 
+         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
 
             ##### DEBUG #####
 
-            uiOutput("data_exists"),
+            # uiOutput("data_exists"),
 
             #################
 
             # Horizontal line ----
-            tags$hr(),
+            # tags$hr(),
 
             # Input: Checkbox if file has header ----
-            checkboxInput("header", "Header", TRUE),
+            # checkboxInput("header", "Header", TRUE),
 
             # Input: Select separator ----
-            radioButtons(inputId = "sep",
-                         label = "Separator (CSV)",
-                         choices = c(Comma = ",",
-                                     Semicolon = ";",
-                                     Tab = "\t"),
-                         selected = ","),
+            # radioButtons(inputId = "sep",
+                         # label = "Separator (CSV)",
+                         # choices = c(Comma = ",",
+                                     # Semicolon = ";",
+                                     # Tab = "\t"),
+                         # selected = ","),
 
             # Input: Select quotes ----
-            radioButtons(inputId = "quote",
-                         label = "Quote (CSV)",
-                         choices = c(None = "",
-                                     "Double Quote" = '"',
-                                     "Single Quote" = "'"),
-                         selected = '"'),
+            # radioButtons(inputId = "quote",
+                         # label = "Quote (CSV)",
+                         # choices = c(None = "",
+                                     # "Double Quote" = '"',
+                                     # "Single Quote" = "'"),
+                         # selected = '"'),
+
+            # Display date since...
+            uiOutput("start_date_ui"),
 
             # Date format
             textInput(inputId = "date_format",
@@ -96,7 +117,7 @@ ui <- shinyUI(fluidPage(
                       placeholder = "%d: day; %m: month; %Y: year"),
 
             # Horizontal line ----
-            tags$hr(),
+            # tags$hr(),
 
             # Input: Select number of rows to display ----
             radioButtons(inputId = "disp",
@@ -109,7 +130,7 @@ ui <- shinyUI(fluidPage(
           column(width = 4,
 
             # Output: Data file ----
-            tableOutput("table_input_data")
+            tableOutput("table_data")
 
           ),
 
@@ -200,7 +221,7 @@ ui <- shinyUI(fluidPage(
 
             column(2,
 
-              uiOutput("date_max_ui")
+              uiOutput("end_date_ui")
 
             ),
 
@@ -317,17 +338,21 @@ server <- function(input, output, session) {
     # having a comma separator causes `read.csv` to error
     tryCatch(
       {
-        if (input$file1$type %in%
-              c("text/csv", "text/comma-separated-values,text/plain")) {
-          df <- read.csv(input$file1$datapath,
-                   header = input$header,
-                   sep = input$sep,
-                   quote = input$quote)
-        } else {
-          df <- read_xlsx(input$file1$datapath,
-                          col_names = input$header)
-          df <- as.data.frame(df)
-        }
+        # if (input$file1$type %in%
+              # c("text/csv", "text/comma-separated-values,text/plain")) {
+          # df <- read.csv(input$file1$datapath,
+                   # header = input$header,
+                   # sep = input$sep,
+                   # quote = input$quote)
+        # } else {
+          # df <- read_xlsx(input$file1$datapath,
+                          # col_names = input$header)
+          # df <- as.data.frame(df)
+        # }
+        df <- import.covid(
+          input.file = input$file1$datapath,
+          date.format = input$date_format
+        )
       },
       error = function(e) {
         # return a safeError if a parsing error occurs
@@ -335,18 +360,18 @@ server <- function(input, output, session) {
       }
     )
 
-    if (ncol(df) < 3) {
-      stop("Data file must have at least three columns")
-    } else {
-      df <- df[, 1:3]
-      names(df) <- c("date0", "nhos", "nicu")
-    }
+    # if (ncol(df) < 3) {
+      # stop("Data file must have at least three columns")
+    # } else {
+      # df <- df[, 1:3]
+      # names(df) <- c("date0", "nhos", "nicu")
+    # }
 
-    df$date <- as.Date(df$date0, format = input$date_format)
-    df$nhos <- as.integer(df$nhos)
-    df$nicu <- as.integer(df$nicu)
+    # df$date <- as.Date(df$date0, format = input$date_format)
+    # df$nhos <- as.integer(df$nhos)
+    # df$nicu <- as.integer(df$nicu)
 
-    df <- df[c("date0", "date", "nhos", "nicu")]
+    # df <- df[c("date0", "date", "nhos", "nicu")]
 
     return(df)
 
@@ -359,12 +384,32 @@ server <- function(input, output, session) {
     rv$is_data_ready <- TRUE
   })
 
-  output$table_input_data <- renderTable({
+  output$start_date_ui <- renderUI({
+    val <- as.Date("2020-02-25")
+    if  (val < min(input_data()$date) | val > max(input_data()$date)) {
+      val <-  min(input_data()$date)
+    }
+    dateInput(inputId = "start_date",
+                        label = "Display data since...",
+                        value = val,
+                        min = min(input_data()$date),
+                        max = max(input_data()$date),
+                        format = "yyyy-mm-dd")
+  })
 
-    tbl <- input_data()
+  data <- reactive({
+
+    subset(input_data(), date >= input$start_date)
+
+  })
+
+  output$table_data <- renderTable({
+
+    tbl <- data()
     tbl$date <- as.character(tbl$date)
-    names(tbl) <- c("Date (input)", "Date (formated)", "Hospital (cumul.)",
-                    "ICU (current)")
+    # names(tbl) <- c("Date (input)", "Date (formated)", "Hospital (cumul.)",
+                    # "ICU (current)")
+    names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)")
 
     if(input$disp == "head") {
       return(head(tbl))
@@ -377,7 +422,7 @@ server <- function(input, output, session) {
 
   output$plot_nhos <- renderPlot({
 
-    input_data() %>%
+    data() %>%
       ggplot(aes(x = date, y = nhos)) +
       geom_col(fill = "#428bca") +
       theme_minimal() +
@@ -387,7 +432,7 @@ server <- function(input, output, session) {
 
   output$plot_nicu <- renderPlot({
 
-    input_data() %>%
+    data() %>%
       ggplot(aes(x = date, y = nicu)) +
       geom_col(fill = "#428bca") +
       theme_minimal() +
@@ -422,9 +467,9 @@ server <- function(input, output, session) {
         col_dis_lam <- which(names(pars()) %in% c("mlam", "vlam")) - 1
         row_dis_lam <- as.integer(c())
         if (rv$is_data_ready) {
-          if (nrow(input_data()) > 1) {
+          if (nrow(data()) > 1) {
             row_dis_lam <-
-              0:(max(which(pars()$date <= max(input_data()$date))) - 2)
+              0:(max(which(pars()$date <= max(data()$date))) - 2)
           }
         }
         rhandsontable(pars(), useTypes = TRUE, stretchH = "all",
@@ -511,7 +556,7 @@ server <- function(input, output, session) {
 
     s <- NULL
     if (rv$is_data_ready) {
-      b <- pars()$date <= max(input_data()$date)
+      b <- pars()$date <= max(data()$date)
       if (any(b)) s <- pars()$date[max(which(b))]
     }
 
@@ -541,7 +586,7 @@ server <- function(input, output, session) {
     p <- paste0("m", input$spar)
     i <- 1
     if (rv$is_data_ready & p == "mlam") {
-      b <- pars()$date <= max(input_data()$date)
+      b <- pars()$date <= max(data()$date)
       if (any(b)) i <- max(which(b))
     }
     plt <- ggplot(pars()[i:nrow(pars()), ], aes_string(x = "date", y = p)) +
@@ -553,10 +598,10 @@ server <- function(input, output, session) {
 
 # -------------------------------- FORECASTS -------------------------------- #
 
-  output$date_max_ui <- renderUI({
-    dm <- max(input_data()$date)
-    dateInput(inputId = "date_max",
-                        label = "Prediction until ...",
+  output$end_date_ui <- renderUI({
+    dm <- max(data()$date)
+    dateInput(inputId = "end_date",
+                        label = "Prediction until...",
                         value = dm + 7,
                         min = dm + 1,
                         max = NULL,
@@ -565,7 +610,7 @@ server <- function(input, output, session) {
 
   nday <- reactive({
 
-    input$date_max - max(input_data()$date)
+    input$end_date - max(data()$date)
 
   })
 
@@ -575,10 +620,23 @@ server <- function(input, output, session) {
                                         "vlag", "mlos", "vlos")]))
     i <- 1
     if (rv$is_data_ready) {
-      b <- pars()$date <= max(input_data()$date)
+      b <- pars()$date <= max(data()$date)
       if (any(b)) i <- max(which(b))
     }
     miss_param_1 <- any(is.na(pars()[i:nrow(pars()), c("mlam", "vlam")]))
+
+    if (!rv$is_data_ready) {
+
+      showModal(modalDialog(
+        title = "Data not ready",
+        "",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+
+      return()
+
+    }
 
     if (miss_param_0 | miss_param_1) {
 
@@ -596,7 +654,7 @@ server <- function(input, output, session) {
     show_modal_spinner() # show the modal window
 
     rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(),
-                          input_data(), ncpu = 8)
+                          data(), ncpu = 8)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
 
@@ -607,7 +665,7 @@ server <- function(input, output, session) {
   ###### DEBUG #######
 
   # output$pars <- renderTable({ pars() })
-  # output$data <- renderTable({ input_data() })
+  # output$data <- renderTable({ data() })
   # output$pred_nhos <- renderTable({ rv$pred$nhos })
   # output$days <- renderText({ paste(as.character(rv$days), collapse=" ") })
 
@@ -670,7 +728,7 @@ server <- function(input, output, session) {
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = rownames(nbed),
                   as.data.frame(nbed, check.names = FALSE))
-    list(nhos = nhos, nbed = nbed, pars = pars())
+    list(nhos = nhos, nbed = nbed, pars = pars(), data = data())
 
   })
 
