@@ -187,7 +187,7 @@ import.covid <- function(
   } else {
     # Data with nhos and nicu
     data <- raw
-    data$date <- conv2(data$date)
+    data$date <- conv2(data$date, date.format)
   }
   if (!is.na(start.date)) {
     start.date <- conv(start.date, format = date.format)

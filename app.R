@@ -384,7 +384,30 @@ server <- function(input, output, session) {
     rv$is_data_ready <- TRUE
   })
 
+  # Correct date format
+  observe(
+
+    if (rv$is_data_ready) {
+
+      if (any(is.na(input_data()$date))) {
+
+        showModal(modalDialog(
+          title = "Fail to read the date",
+          paste("Check the date format. Reload the app and give the correct",
+                "format before data loading."),
+          easyClose = TRUE,
+          footer = NULL
+        ))
+
+      }
+
+    }
+
+  )
+
+  # Start date
   output$start_date_ui <- renderUI({
+
     val <- as.Date("2020-02-25")
     if  (val < min(input_data()$date) | val > max(input_data()$date)) {
       val <-  min(input_data()$date)
@@ -395,6 +418,7 @@ server <- function(input, output, session) {
                         min = min(input_data()$date),
                         max = max(input_data()$date),
                         format = "yyyy-mm-dd")
+
   })
 
   data <- reactive({
