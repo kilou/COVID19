@@ -116,17 +116,15 @@ plot.covid <- function(
 }
 
 # ------------------------------------------------------------------------------------------------------
-# Calculate cumulative count of hospitalized patients (nhos) and daily count of patients in ICU (nicu)
-# using individual patient data
-import.covid <- function(
-  input.file="20.03.26 - Données hop COVID - anonymisées.xlsx",
-  input.sheet="données",
-  output.file="data.xlsx", # if NULL, return an object called data
-  start.date="24.02.2020"
+# Import individual patient data
+import.ipd <- function(
+  input.file,              # xlsx input data file with individual patient data
+  input.sheet,             # sheet in input.file where data are located
+  start.date="25.02.2020"  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
 ){
   # Some options
   start.date <- conv(start.date)
-  
+
   # Read individual patient data
   raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=input.sheet))
   id <- raw[,"No interne*"]
@@ -137,23 +135,44 @@ import.covid <- function(
   icu_out <- conv(format(as.Date(raw[,"fin si"]),"%d.%m.%Y"))
   hos_out <- conv(format(as.Date(raw[,"date sortie"]),"%d.%m.%Y"))
   dead <- raw[,"deces"]
-  
-  # Calculate daily cumulative count of hospitalized patients and daily nb of patients in ICU
-  days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
-  ndays <- length(days)
-  nhos <- nicu <- numeric(ndays)
-  for(j in 1:ndays){
-    nhos[j] <- sum(hos_in<=days[j])
-    nicu[j] <- sum(icu_in<=days[j] & is.na(icu_out),na.rm=T) + sum(icu_in<=days[j] & icu_out>=days[j],na.rm=T)
-  }
-  data <- data.frame(date=days,nhos=nhos,nicu=nicu)
-  data <- subset(data,date>=start.date)
-  if(!is.null(output.file)){
-    data$date <- format(data$date,"%d.%m.%Y")
-    writexl::write_xlsx(data,path=output.file)
+  data <- data.frame(id=id,age=age,sex=sex,hos_in=hos_in,icu_in=icu_in,icu_out=icu_out,hos_out=hos_out,dead=dead)
+  data
+}
+
+# ------------------------------------------------------------------------------------------------------
+# Import data. Input file can be either a file with date, nhos and nicu columns or a file with individual patient data
+import.covid <- function(
+  input.file,              # xlsx input data file
+  start.date="25.02.2020"  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+){
+  start.date <- conv(start.date)
+  sheets <- excel_sheets(input.file)
+  if(sum(sheets=="données")>0){
+    # Individual patient data
+    raw <- as.data.frame(readxl::read_xlsx(input.file,sheet="données"))
+    id <- raw[,"No interne*"]
+    age <- raw[,"Age"]; age[age==0] <- NA
+    sex <- factor(raw[,"sex"],levels=c("M","F"))
+    hos_in <- conv(format(as.Date(raw[,"Date entree"]),"%d.%m.%Y"))
+    icu_in <- conv(format(as.Date(raw[,"debut si"]),"%d.%m.%Y"))
+    icu_out <- conv(format(as.Date(raw[,"fin si"]),"%d.%m.%Y"))
+    
+    # Calculate daily cumulative count of hospitalized patients and daily nb of patients in ICU
+    days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
+    ndays <- length(days)
+    nhos <- nicu <- numeric(ndays)
+    for(j in 1:ndays){
+      nhos[j] <- sum(hos_in<=days[j])
+      nicu[j] <- sum(icu_in<=days[j] & is.na(icu_out),na.rm=T) + sum(icu_in<=days[j] & icu_out>=days[j],na.rm=T)
+    }
+    data <- data.frame(date=days,nhos=nhos,nicu=nicu)
   } else {
-    data
+    # Data with nhos and nicu
+    data <- as.data.frame(readxl::read_xlsx(input.file,sheet=1))
+    data$date <- conv(data$date)
   }
+  data <- subset(data,date>=start.date)
+  data
 }
 
 # ------------------------------------------------------------------------------------------------------
