@@ -161,7 +161,7 @@ ui <- shinyUI(fluidPage(
 
               uiOutput("sdate_ui"),
 
-              numericInput(inputId = "cipar",
+              numericInput(inputId = "pipar",
                                    label = "Interval length",
                                    value = 0.9,
                                    min = 0,
@@ -241,23 +241,14 @@ ui <- shinyUI(fluidPage(
 
             column(3,
 
-              numericInput(inputId = "cinhos",
-                           label = "CI length for #cases",
-                           value = 0.9,
-                           min = 0,
-                           max = 1,
-                           step = 0.05)
+              uiOutput("pinhos_ui")
 
             ),
 
             column(3,
 
-              numericInput(inputId = "cinbed",
-                           label = "CI length for #beds",
-                           value = 0.9,
-                           min = 0,
-                           max = 1,
-                           step = 0.05)
+              uiOutput("pinbed_ui")
+
             )
 
           ),
@@ -287,8 +278,8 @@ ui <- shinyUI(fluidPage(
 
           br(),
 
-          div(p(strong("Creators:"), "Aziz Chaouch, Jérôme Pasquier,",
-                "Valentin Rousson and Bastien Trächsel"), 
+          div(p(strong("Creators:"), "Aziz Chaouch, Yves Eggli,",
+                "Jérôme Pasquier,", "Valentin Rousson and Bastien Trächsel"), 
               p(strong("R Packages:"), paste(pkg_list, collapse = ", ")),
               style = "font-family: courier;")
 
@@ -373,7 +364,7 @@ server <- function(input, output, session) {
     tbl <- input_data()
     tbl$date <- as.character(tbl$date)
     names(tbl) <- c("Date (input)", "Date (formated)", "Hospital (cumul.)",
-                    "ICU (cumul.)")
+                    "ICU (current)")
 
     if(input$disp == "head") {
       return(head(tbl))
@@ -538,7 +529,7 @@ server <- function(input, output, session) {
     i <- pars()$date %>% {!is.na(.) & . == d}
     mv <- pars()[i, paste0(c("m", "v"), p)]
     v <- get(paste0("r", p))(1e06, mv[, 1], mv[, 2])
-    q <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cipar) / 2
+    q <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pipar) / 2
     validate(need(v, ""))
     histo(v, q)
 
@@ -622,10 +613,37 @@ server <- function(input, output, session) {
 
   #####################
 
+  output$pinhos_ui <- renderUI({
+
+    req(rv$pred)
+
+    numericInput(inputId = "pinhos",
+                 label = paste("PI length for cumulative counts of",
+                               "hospitalized patients"),
+                 value = 0.9,
+                 min = 0,
+                 max = 1,
+                 step = 0.05)
+
+  })
+
+  output$pinbed_ui <- renderUI({
+
+    req(rv$pred)
+
+    numericInput(inputId = "pinbed",
+                 label = "PI length for number of occupied beds in ICUs",
+                 value = 0.9,
+                 min = 0,
+                 max = 1,
+                 step = 0.05)
+
+  })
+
   output$plot_fc_nhos <- renderPlot({
 
-    validate(need(rv$pred, ""))
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cinhos) / 2
+    validate(need(rv$pred, ""), need(input$pinhos, ""))
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinhos) / 2
     pred <- rv$pred
     plot.covid(pred, what = "nhos", prob = p)
 
@@ -633,8 +651,8 @@ server <- function(input, output, session) {
 
   output$plot_fc_nbed <- renderPlot({
 
-    validate(need(rv$pred, ""))
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$cinbed) / 2
+    validate(need(rv$pred, ""), need(input$pinbed, ""))
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinbed) / 2
     pred <- rv$pred
     plot.covid(pred, what = "nbed", prob = p)
 
@@ -642,13 +660,13 @@ server <- function(input, output, session) {
 
   fc_table <- reactive({
 
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinhos) / 2
-    nhos <- t(apply(rv$pred$nhos, 2, quantile, prob = p))
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinhos) / 2
+    nhos <- round(t(apply(rv$pred$nhos, 2, quantile, prob = p)))
     colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
     nhos <- cbind(date = rownames(nhos),
                   as.data.frame(nhos, check.names = FALSE))
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$cinbed) / 2
-    nbed <- t(apply(rv$pred$nbed, 2, quantile, prob = p))
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinbed) / 2
+    nbed <- round(t(apply(rv$pred$nbed, 2, quantile, prob = p)))
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = rownames(nbed),
                   as.data.frame(nbed, check.names = FALSE))
