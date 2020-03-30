@@ -160,7 +160,7 @@ import.covid <- function(
 
 
   # Detect file type (individual patient data or counts)
-  sheets <- excel_sheets(input.file)
+  sheets <- readxl::excel_sheets(input.file)
   nsheets <- length(sheets)
   for(k in 1:nsheets){
     raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=k))
