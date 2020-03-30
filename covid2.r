@@ -7,7 +7,7 @@ source("functions.r")
 
 # Load data and parameters
 data <- import.covid(
-  input.file="20.03.26 - Données hop COVID - anonymisées.xlsx",
+  input.file="20.03.30 - Données hop COVID - anonymisées.xlsx",
   start.date="25.02.2020"
 )
 pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
