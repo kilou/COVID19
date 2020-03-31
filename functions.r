@@ -130,17 +130,17 @@ plot.covid <- function(
 import.ipd <- function(
   input.file,              # xlsx input data file with individual patient data
   input.sheet,             # sheet in input.file where data are located
-  date.format="%d.%m.%Y"
+  date.format="%Y-%m-%d"
 ){
   # Read individual patient data
   raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=input.sheet))
-  id <- raw[,"No interne*"]
+  id <- raw[,"no_unique"]
   age <- raw[,"age"]; age[age==0] <- NA
   sex <- factor(raw[,"sex"],levels=c("M","F"))
-  hos_in <- conv(format(as.Date(raw[,"arrivee_hopital"]),"%d.%m.%Y"))
-  icu_in <- conv(format(as.Date(raw[,"debut_soins_intensifs"]),"%d.%m.%Y"))
-  icu_out <- conv(format(as.Date(raw[,"fin_soins_intensifs"]),"%d.%m.%Y"))
-  hos_out <- conv(format(as.Date(raw[,"sortie_hopital"]),"%d.%m.%Y"))
+  hos_in <- conv(raw[,"arrivee_hopital"],date.format)
+  icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
+  icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
+  hos_out <- conv(raw[,"sortie_hopital"],date.format)
   dead <- raw[,"deces"]
   
   # Calculate lag and ICU length of stay
@@ -158,7 +158,7 @@ import.ipd <- function(
 import.covid <- function(
   input.file="data.xlsx", # xlsx input data file
   start.date=NA,  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
-  date.format="%d.%m.%Y"
+  date.format="%Y-%m-%d"
 ){
 
   # Detect file type (individual patient data or counts)
@@ -166,13 +166,12 @@ import.covid <- function(
   nsheets <- length(sheets)
   for(k in 1:nsheets){
     raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=k))
-    if(colnames(raw)[1]=="No interne*"){type <- "ipd"; sheet <- k; break}
+    if(colnames(raw)[1]=="no_unique"){type <- "ipd"; sheet <- k; break}
     if(sum(colnames(raw)=="nhos")>0){type <- "counts"; sheet <- k; break}
   }
   
   if(type=="ipd"){
     # Individual patient data
-    id <- raw[,"No interne*"]
     hos_in <- conv(raw[,"arrivee_hopital"],date.format)
     icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
     icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
