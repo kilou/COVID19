@@ -8,7 +8,8 @@ source("functions.r")
 # Load data and parameters
 data <- import.covid(
   input.file="20.03.30 - Données hop COVID - anonymisées.xlsx",
-  start.date="25.02.2020"
+  start.date="2020-02-25",
+  date.format="%Y-%m-%d"
 )
 pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
 pars$date <- conv(pars$date)
@@ -48,10 +49,36 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=10,nsim=2000,pars,data,ncpu=4)
+pred <- pred.covid(nday=60,nsim=2000,pars,data,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)
 
 # Plot nb ICU beds required
 plot.covid(pred,what="nbed",prob=p)
+
+# ------------------------------------------------------------------------------------------------------
+# ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
+ipd <- import.ipd(
+  input.file="20.03.30 - Données hop COVID - anonymisées.xlsx",
+  input.sheet="Backlog",
+  date.format="%Y-%m-%d"
+)
+today <- max(ipd$hos_in,na.rm=T)
+
+# Negative binomial distribution for lag
+fit.nb(ipd$icu_lag)
+
+# negative binomial distribution for LOS
+los <- ipd$icu_los
+cens <- (!is.na(ipd$icu_in) & is.na(ipd$icu_out))*1
+los[cens==1] <- today-ipd$icu_in[cens==1]
+fit.nb(los,cens)
+
+# ------------------------------------------------------------------------------------------------------
+# ESTIMATE MEAN AND VARIANCE OF EXPONENTIAL GROWTH PARAMETER ON LAST 15 DAYS
+plot(log(nhos)~date,data=data)
+nhos <- subset(data,date>=today-15)$nhos
+lam <- nhos[-1]/nhos[-length(nhos)]
+mean(lam)
+sd(lam)

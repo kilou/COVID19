@@ -94,7 +94,7 @@ plot.covid <- function(
     y <- data$nhos
   }
 
-  par(mar=c(3,5,3,3),mgp=c(1.8,0.6,0))
+  par(mar=c(3,5,4,3),mgp=c(1.8,0.6,0))
   plot(range(days),range(c(y,Q)),type="n",xlab="",ylab="",las=1)
   ytck1 <- pretty(c(y,Q))
   ytck2 <- seq(min(ytck1),max(ytck1),by=diff(ytck1)[1]/5)
@@ -110,6 +110,7 @@ plot.covid <- function(
   points(data$date,y,pch=19,col="black")
   points(days[futur[-1]],Q[futur[-1],2],pch=19,col="red")
   abline(v=today,lty=2)
+  mtext(today,side=3,at=today,line=0.2)
   abline(h=0)
   legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=1)
   mtext(paste0(100*prob,"%"),side=4,at=Q[nrow(Q),],cex=0.8,las=1,col=c(rgb(rgb.blue),"red",rgb(rgb.blue)),line=0.25)
@@ -120,11 +121,8 @@ plot.covid <- function(
 import.ipd <- function(
   input.file,              # xlsx input data file with individual patient data
   input.sheet,             # sheet in input.file where data are located
-  start.date="25.02.2020"  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+  date.format="%d.%m.%Y"
 ){
-  # Some options
-  start.date <- conv(start.date)
-
   # Read individual patient data
   raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=input.sheet))
   id <- raw[,"No interne*"]
@@ -135,7 +133,14 @@ import.ipd <- function(
   icu_out <- conv(format(as.Date(raw[,"fin_soins_intensifs"]),"%d.%m.%Y"))
   hos_out <- conv(format(as.Date(raw[,"sortie_hopital"]),"%d.%m.%Y"))
   dead <- raw[,"deces"]
-  data <- data.frame(id=id,age=age,sex=sex,hos_in=hos_in,icu_in=icu_in,icu_out=icu_out,hos_out=hos_out,dead=dead)
+  
+  # Calculate lag and ICU length of stay
+  icu_lag <- icu_in-hos_in
+  icu_los <- icu_out-icu_in
+  hos_los <- hos_out-hos_in
+  
+  # Return IPD data
+  data <- cbind.data.frame(id,age,sex,hos_in,icu_in,icu_out,hos_out,dead,icu_lag,icu_los,hos_los)
   data
 }
 
@@ -354,4 +359,45 @@ pred.covid <- function(
     nbed=nbed, # predicted nb of occupied ICU beds
     data=data  # return data (for plotting)
   )
+}
+
+# ------------------------------------------------------------------------------------------------------
+# Fit negative binomial distribution to a vector of counts x with possibly right-censored observations
+# Uses a grid search on integer values
+fit.nb <- function(
+  x,           # count vector (e.g. nb of days)
+  cens=NULL,   # binary indicator for right-censored (1) or observed (0) data. If NULL, x is fully observed
+  mu.max=50,   # maximum mean value for grid search
+  var.max=300  # maximum variance value for grid search
+){
+  x <- as.numeric(x)
+  if(is.null(cens)){cens <- 0*x}
+  
+  # Remove missing values
+  keep <- which(!is.na(x))
+  x <- x[keep]
+  cens <- cens[keep]
+  
+  # Define parameter grid
+  grid <- expand.grid(m=c(1:mu.max),v=c(1:var.max))
+  grid <- grid[which(grid$v>=grid$m),]
+  
+  # Define (censored) log-likelihood for negative binomial distribution
+  nb.llik <- function(pars,x,cens){
+    m <- pars[1]
+    v <- pars[2]
+    size <- m^2/(v-m)
+    obs <- which(cens==0)
+    cns <- which(cens==1)
+    ll <- numeric(length(x))
+    if(length(obs)>0){ll[obs] <- dnbinom(x[obs],size=size,mu=m,log=TRUE)}
+    if(length(cns)>0){ll[cns] <- pnbinom(x[cns],size=size,mu=m,lower.tail=FALSE,log.p=TRUE)}
+    sum(ll)
+  }
+  
+  # Grid search
+  ll <- as.numeric(apply(grid,1,nb.llik,x=x,cens=cens))
+  best <- rev(order(ll))[1]
+  
+  list(mean=grid$m[best],variance=grid$v[best],loglik=ll[best])
 }
