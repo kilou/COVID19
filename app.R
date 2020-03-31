@@ -84,12 +84,17 @@ ui <- shinyUI(fluidPage(
             uiOutput("start_date_ui"),
 
             # Date format
-            textInput(inputId = "date_format",
-                      label = "Date format",
-                      # value = "%Y-%m-%d",
-                      value = "%d.%m.%Y",
-                      width = NULL,
-                      placeholder = "%d: day; %m: month; %Y: year"),
+            selectInput(inputId = "date_format",
+                        label = "Date format",
+                        choices = list(`DD.MM.YYYY` = "%d.%m.%Y",
+                                       `MM.DD.YYYY` = "%m.%d.%Y",
+                                       `YYYY.MM.DD` = "%Y.%m.%d",
+                                       `DD-MM-YYYY` = "%d-%m-%Y",
+                                       `MM-DD-YYYY` = "%m-%d-%Y",
+                                       `YYYY-MM-DD` = "%Y-%m-%d",
+                                       `DD/MM/YYYY` = "%d/%m/%Y",
+                                       `MM/DD/YYYY` = "%m/%d/%Y",
+                                       `YYYY/MM/DD` = "%Y/%m/%d")),
 
             # Input: Select number of rows to display ----
             radioButtons(inputId = "disp",
@@ -339,8 +344,7 @@ server <- function(input, output, session) {
 
         showModal(modalDialog(
           title = "Fail to read the date",
-          paste("Check the date format. Reload the app and give the correct",
-                "format before data loading."),
+          "Check the date format.",
           easyClose = TRUE,
           footer = NULL
         ))
