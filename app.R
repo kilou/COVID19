@@ -94,7 +94,8 @@ ui <- shinyUI(fluidPage(
                                        `YYYY-MM-DD` = "%Y-%m-%d",
                                        `DD/MM/YYYY` = "%d/%m/%Y",
                                        `MM/DD/YYYY` = "%m/%d/%Y",
-                                       `YYYY/MM/DD` = "%Y/%m/%d")),
+                                       `YYYY/MM/DD` = "%Y/%m/%d"),
+                        selected = "%Y-%m-%d"),
 
             # Input: Select number of rows to display ----
             radioButtons(inputId = "disp",

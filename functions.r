@@ -195,6 +195,8 @@ import.covid <- function(
     start.date <- conv(start.date, format = date.format)
     data <- subset(data,date>=start.date)
   }
+  data$nhos <- as.integer(data$nhos)
+  data$nicu <- as.integer(data$nicu)
   data
 }
 
