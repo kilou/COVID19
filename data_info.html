@@ -15,7 +15,7 @@ td, th {
 <p style="font-size: 1.5rem; text-align: left">
   You can import aggregated or individual data. In both cases you have to
   satisfy the predefined format. If dates are not "date" in Excel but "string",
-  you have to specifiy the format (default: %d.%m.%Y).
+  you have to specifiy the format (default: YYYY/MM/DD).
 </p>
 
 <!-- <h4 style="text-align: left">Aggregated data</h4> -->
@@ -27,8 +27,7 @@ td, th {
 <table style="font-size: 1.5rem">
   <tr>
     <td>date</td>
-    <td>You can specify the format in the field "Date format".
-        Default: %d.%m%Y</td>
+    <td>You can specify the format in the field "Date format"</td>
   </tr>
   <tr>
     <td>nhos</td>
@@ -43,5 +42,21 @@ td, th {
  <!-- <h4 style="text-align: left">Individual data</h4> -->
 
 <p style="font-size: 1.5rem; text-align: left">
-  An individual data file contains...
+  An individual data file contains at least one sheet with the first column
+  named "No interne*". The other mandatory columns are
 </p>
+
+<table style="font-size: 1.5rem">
+  <tr>
+    <td>arrivee_hopital</td>
+    <td>Date of hospitalization (date format or empty)</td>
+  </tr>
+  <tr>
+    <td>debut_soins_intensifs</td>
+    <td>Date of entry into intensive care (date format or empty)</td>
+  </tr>
+  <tr>
+    <td>fin_soins_intensifs</td>
+    <td>Intensive care discharge date (date format or empty)</td>
+  </tr>
+ </table>
