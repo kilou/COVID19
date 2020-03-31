@@ -1,0 +1,177 @@
+\documentclass[10pt,twocolumn,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[left=1.8cm,right=1.8cm,top=2.5cm,bottom=2.5cm]{geometry}
+%\usepackage{bibtex}
+
+% --------------------------------------------------------------------------- %
+
+% Independence symbol
+\newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+\def\independenT#1#2{\mathrel{\rlap{$#1#2$}\mkern2mu{#1#2}}}
+
+% Negative Binomial symbol
+\newcommand{\NB}{\text{NegBin}}
+
+% Numbered environments
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{hypothesis}{Hypothesis}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\theoremstyle{plain}
+\newtheorem{lemma}{Lemma}
+
+% --------------------------------------------------------------------------- %
+
+\author{
+  A. Chaouch, Y. Eggli, J. Pasquier, V. Rousson and B. Trächsel\\
+  Center for Primary Care and Public Health\\
+  University of Lausanne (Switzerland)
+}
+
+\title{
+  Covid19 - Forecasts ICU beds
+}
+
+%\date{\today}
+\date{April 2020}
+
+% --------------------------------------------------------------------------- %
+
+\begin{document}
+
+\maketitle
+
+\begin{definition}
+
+  Let $Y_k$ be the cumulative count of hospitalized patients on day $k$.
+  %
+  \[ Y_k = (1 + \exp(u_k)) Y_{k-1}, \]
+  %
+  where
+  %
+  \[ u_k \sim \text{N}(\log(\lambda_k-1), \sigma_k^2). \]
+  %
+  Note: $\lambda_k$ = \verb|mlam| and $\sigma_k^2$ = \verb|vlam|.
+
+\end{definition}
+
+A voir : $\mu_k \independent Y_{k-1} \implies Y_k \sim \text{Log-normal}$
+
+\begin{definition}
+
+  Let $p_k$ be the proportion of patients hospitalized on day $k$ (incident
+  cases) who will then be admitted to intensive care. The random variable $p_k$
+  follows a logit-normal distribution:
+  %
+  \[ p_k = \cfrac{\exp(q_k)}{1 + \exp(q_k)}, \]
+  %
+  where
+  %
+  \[ q_k \sim \text{N}(\log(\cfrac{\pi_k}{1-\pi_k}), \tau_k^2). \]
+  %
+  Note: $\pi_k$ = \verb|mpic| and $\tau_k^2$ = \verb|vpic|.
+
+\end{definition}
+
+\begin{definition}
+
+  Let $S_k$ be the number of days (possibly zero) between the hospitalization
+  and the admission in the intensive care for the patients who were
+  hospitalized on day $k$.
+  %
+  \[ S_k \sim \NB(\cfrac{\phi_k^2-\mu_k}{\phi_k^2},
+                  \cfrac{\mu_k^2}{\phi_k^2-\mu_k}). \]
+  %
+  Note: $\mu_k$ = \verb|mlag| and $\phi_k^2$ = \verb|vlag|.
+
+\end{definition}
+
+\begin{definition}
+
+  Let $T_k$ the length of stay (possibly zero) in the intensive care for the
+  patients who were hospitalized on day $k$.
+  %
+  \[ T_k \sim \NB(\cfrac{\chi_k^2-\nu_k}{\chi_k^2},
+                  \cfrac{\nu_k^2}{\chi_k^2-\nu_k}). \]
+  %
+  Note: $\nu_k$ = \verb|mlos| and $\chi_k^2$ = \verb|vlos|.
+
+\end{definition}
+
+\begin{definition}
+
+  Let define the following random variable:
+  %
+  \[
+    I_{j,k,l} =
+    \begin{cases}
+      1 & \parbox[t]{.3\textwidth}{if the $j$th patient hospitalized on day $k$
+          is being treated in intensive care $l$ day later,} \\
+      0 & \text {if not.}
+    \end{cases}
+  \]
+
+\end{definition}
+
+\begin{lemma}
+
+  $P(I_{j,k,l}=1) = \sum\limits_{i=0}^l P(S_k = i, T_k \ge l-i)$
+
+\end{lemma}
+
+\begin{proof}
+
+  \begin{align*}
+    P(I_{j,k,l}=1) &= P(S_k \le l \le S_k + T_k) \\
+                   &= \sum\limits_{i=0}^l P(S_k = i, T_k \ge l-i)
+  \end{align*}
+
+\end{proof}
+
+\begin{definition}
+
+  Let $Z_m$ the number of patients treated in intensive care on day $m$.
+
+\end{definition}
+
+\begin{lemma}
+
+  \[ Z_m = \sum\limits_{k=1}^m \sum\limits_{j=1}^{W_k} I_{j,k,m-k} \]
+  %
+  where $W_k = p_k (Y_k - Y_{k-1})$ with the convention that $Y_0 = 0$.
+
+\end{lemma}
+
+
+\begin{lemma}
+
+  Suppose that the random variables \dots are independent, then
+  %
+  \[ E(Z_m) \approx \dots \]
+
+\end{lemma}
+
+\begin{proof}
+
+  \begin{align*}
+    E(Z_m) &= E(\sum_{k=1}^m W_k I_{j,k,m-k}) \\
+           &= \sum_{k=1}^m E(p_k) (E(Y_k) - E(Y_{k-1})) E(I_{j,k,m-k}) \\
+    E(p_k) &\approx \cfrac{1}{K-1} \sum_{i=1}^{K-1}
+                    \text{logit}(\Phi_{.,.}^{-1}(i/K)) \\
+    E(Y_k) &= (1 + \exp(log(\lambda_k-1)+\sigma_k^2/2) E(Y_{k-1}) \\
+    E(I_{j,k,m-k}) &= \sum_{i=0}^l P(S_k = i, T_k \ge l-i) \\
+                   &= \sum_{i=0}^l P(S_k = i) P(T_k \ge l-i)
+  \end{align*}
+
+\end{proof}
+
+
+\end{document}
