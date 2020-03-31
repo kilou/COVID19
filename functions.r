@@ -3,7 +3,16 @@
 ########################################################################################################
 # ------------------------------------------------------------------------------------------------------
 # Convert dates
-conv <- function(x,format="%d.%m.%Y"){as.Date(strptime(as.character(x),format=format))}
+conv <- function(x, format = "%d.%m.%Y") {
+  if (any(class(x) %in% c("POSIXct", "POSIXt"))) {
+    x <- as.Date(x)
+  } else if (any(class(x) %in% "character")) {
+    x <- as.Date(strptime(as.character(x), format = format))
+  } else if (!any(class(x) %in% "Date")) {
+    stop("Wrong date format")
+  }
+  return(x)
+}
 
 # ------------------------------------------------------------------------------------------------------
 # Logit and expit functions
@@ -151,18 +160,6 @@ import.covid <- function(
   start.date=NA,  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
   date.format="%d.%m.%Y"
 ){
-  
-  conv2 <- function(x, format="%d.%m.%Y") {
-    if (any(class(x) %in% c("POSIXct", "POSIXt"))) {
-      x <- as.Date(x)
-    } else if (any(class(x) %in% "character")) {
-      x <- conv(x, format = format)
-    } else if (!any(class(x) %in% "Date")) {
-      stop("Wrong date format")
-    }
-    return(x)
-  }
-
 
   # Detect file type (individual patient data or counts)
   sheets <- readxl::excel_sheets(input.file)
@@ -176,9 +173,9 @@ import.covid <- function(
   if(type=="ipd"){
     # Individual patient data
     id <- raw[,"No interne*"]
-    hos_in <- conv2(raw[,"arrivee_hopital"],date.format)
-    icu_in <- conv2(raw[,"debut_soins_intensifs"],date.format)
-    icu_out <- conv2(raw[,"fin_soins_intensifs"],date.format)
+    hos_in <- conv(raw[,"arrivee_hopital"],date.format)
+    icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
+    icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
     
     # Calculate daily cumulative count of hospitalized patients and daily nb of patients in ICU
     days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
@@ -192,7 +189,7 @@ import.covid <- function(
   } else {
     # Data with nhos and nicu
     data <- raw
-    data$date <- conv2(data$date, date.format)
+    data$date <- conv(data$date, date.format)
   }
   if (!is.na(start.date)) {
     start.date <- conv(start.date, format = date.format)
