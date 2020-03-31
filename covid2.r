@@ -7,7 +7,7 @@ source("functions.r")
 
 # Load data and parameters
 data <- import.covid(
-  input.file="20.03.30 - Données hop COVID - anonymisées.xlsx",
+  input.file="data/20.03.30 - Données hop COVID - anonymisées.xlsx",
   start.date="2020-02-25",
   date.format="%Y-%m-%d"
 )
@@ -40,8 +40,8 @@ lag <- rlag(1e06,mlag,vlag)
 histo(lag,p)
 
 # ICU length of stay
-mlos <- 8   # mean LOS
-vlos <- 50  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
+mlos <- 13   # mean LOS
+vlos <- 154  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
 los <- rlos(1e06,mlos,vlos)
 histo(los,p)
 
@@ -60,7 +60,7 @@ plot.covid(pred,what="nbed",prob=p)
 # ------------------------------------------------------------------------------------------------------
 # ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
 ipd <- import.ipd(
-  input.file="20.03.30 - Données hop COVID - anonymisées.xlsx",
+  input.file="data/20.03.30 - Données hop COVID - anonymisées.xlsx",
   input.sheet="Backlog",
   date.format="%Y-%m-%d"
 )
