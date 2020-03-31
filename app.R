@@ -56,7 +56,8 @@ ui <- shinyUI(fluidPage(
               span(icon("question-circle"), id = "data_info"),
               tippy_this(
                 elementId = "data_info",
-                tooltip = "data_info.html" %>% {readChar(., file.info(.)$size)},
+                tooltip = "data_info.html" %>%
+                  {readChar(., file.info(.)$size)},
                 allowHTML = TRUE,
                 placement = "right",
                 maxWidth = "600px",
@@ -68,12 +69,8 @@ ui <- shinyUI(fluidPage(
 
             # Input: Select a file ----
             fileInput(inputId = "file1",
-                      # label = "Choose data file\n(csv or xlsx)",
                       label = "Choose data file (xlsx)",
                       multiple = FALSE,
-                      # accept = c("text/csv",
-                                 # "text/comma-separated-values,text/plain",
-      # "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")),
                       accept = 
          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
 
@@ -82,28 +79,6 @@ ui <- shinyUI(fluidPage(
             # uiOutput("data_exists"),
 
             #################
-
-            # Horizontal line ----
-            # tags$hr(),
-
-            # Input: Checkbox if file has header ----
-            # checkboxInput("header", "Header", TRUE),
-
-            # Input: Select separator ----
-            # radioButtons(inputId = "sep",
-                         # label = "Separator (CSV)",
-                         # choices = c(Comma = ",",
-                                     # Semicolon = ";",
-                                     # Tab = "\t"),
-                         # selected = ","),
-
-            # Input: Select quotes ----
-            # radioButtons(inputId = "quote",
-                         # label = "Quote (CSV)",
-                         # choices = c(None = "",
-                                     # "Double Quote" = '"',
-                                     # "Single Quote" = "'"),
-                         # selected = '"'),
 
             # Display date since...
             uiOutput("start_date_ui"),
@@ -115,9 +90,6 @@ ui <- shinyUI(fluidPage(
                       value = "%d.%m.%Y",
                       width = NULL,
                       placeholder = "%d: day; %m: month; %Y: year"),
-
-            # Horizontal line ----
-            # tags$hr(),
 
             # Input: Select number of rows to display ----
             radioButtons(inputId = "disp",
@@ -334,21 +306,8 @@ server <- function(input, output, session) {
 
     req(input$file1)
 
-    # when reading semicolon separated files,
-    # having a comma separator causes `read.csv` to error
     tryCatch(
       {
-        # if (input$file1$type %in%
-              # c("text/csv", "text/comma-separated-values,text/plain")) {
-          # df <- read.csv(input$file1$datapath,
-                   # header = input$header,
-                   # sep = input$sep,
-                   # quote = input$quote)
-        # } else {
-          # df <- read_xlsx(input$file1$datapath,
-                          # col_names = input$header)
-          # df <- as.data.frame(df)
-        # }
         df <- import.covid(
           input.file = input$file1$datapath,
           date.format = input$date_format
@@ -359,19 +318,6 @@ server <- function(input, output, session) {
         stop(safeError(e))
       }
     )
-
-    # if (ncol(df) < 3) {
-      # stop("Data file must have at least three columns")
-    # } else {
-      # df <- df[, 1:3]
-      # names(df) <- c("date0", "nhos", "nicu")
-    # }
-
-    # df$date <- as.Date(df$date0, format = input$date_format)
-    # df$nhos <- as.integer(df$nhos)
-    # df$nicu <- as.integer(df$nicu)
-
-    # df <- df[c("date0", "date", "nhos", "nicu")]
 
     return(df)
 
@@ -431,8 +377,6 @@ server <- function(input, output, session) {
 
     tbl <- data()
     tbl$date <- as.character(tbl$date)
-    # names(tbl) <- c("Date (input)", "Date (formated)", "Hospital (cumul.)",
-                    # "ICU (current)")
     names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)")
 
     if(input$disp == "head") {
