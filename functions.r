@@ -72,7 +72,7 @@ histo <- function(x,prob){
     q <- quantile(x,probs=prob)
     abline(v=q[c(1,3)],lty=2,lwd=2,col="red")
     abline(v=q[2],lwd=2,col="red")
-    mtext(paste0(100*prob,"%"),side=3,at=q,col="red",cex=0.8)
+    mtext(paste0(100*prob,"%"),side=3,at=q,line=c(0,0.7,0),col="red",cex=0.8)
   }
 }
 

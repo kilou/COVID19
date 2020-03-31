@@ -22,8 +22,8 @@ alpha <- 1-level
 p <- c(alpha/2,0.5,1-alpha/2)
 
 # Growth parameter for nb of hospitalized patients (restricted >=1)
-mlam <- 1.20  # median growth
-vlam <- 0.05  # variability
+mlam <- 1.12  # median growth
+vlam <- 0.08  # variability
 lam <- rlam(1e06,mlam,vlam)
 histo(lam,p)
 
@@ -34,8 +34,8 @@ pic <- rpic(1e06,mpic,vpic)
 histo(pic,p)
 
 # Lag between hospitalization and ICU admission (only for patients that will require in ICU!)
-mlag <- 3  # mean lag
-vlag <- 5  # variability. vlag must be >=mlag with vlag=mlag corresponding to Poisson model
+mlag <- 2  # mean lag
+vlag <- 9  # variability. vlag must be >=mlag with vlag=mlag corresponding to Poisson model
 lag <- rlag(1e06,mlag,vlag)
 histo(lag,p)
 
