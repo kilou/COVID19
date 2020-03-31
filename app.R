@@ -26,7 +26,7 @@ source("functions.r")
 
 # Load known parameters
 pars0 <- as.data.frame(read_xlsx("params.xlsx"))
-pars0$date <- conv(pars0$date)
+pars0$date <- conv(pars0$date, format = "%d.%m.%Y")
 
 
 # =========================================================================== #
@@ -416,6 +416,7 @@ server <- function(input, output, session) {
       DF = pars0
     } else {
       DF = hot_to_r(input$pars_tbl)
+      DF$date <- as.Date(DF$date, format = "%Y-%m-%d")
     }
     if (all(!is.na(DF$date))) {
       DF <- DF %>% arrange(date)
@@ -440,13 +441,15 @@ server <- function(input, output, session) {
               0:(max(which(pars()$date <= max(data()$date))) - 2)
           }
         }
-        rhandsontable(pars(), useTypes = TRUE, stretchH = "all",
+        rhandsontable(mutate(pars(), date = as.character(date)),
+                      useTypes = TRUE, stretchH = "all",
                       col_err_lag = col_err_lag, 
                       row_err_lag = row_err_lag,
                       col_err_los = col_err_los, 
                       row_err_los = row_err_los,
                       col_dis_lam = col_dis_lam, 
                       row_dis_lam = row_dis_lam) %>%
+          hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
           hot_validate_numeric(cols = "mlam", min = 1) %>%
           hot_validate_numeric(cols = "vlam", min = 0) %>%
           hot_validate_numeric(cols = "mpic", min = 0, max = 1) %>%
@@ -689,12 +692,12 @@ server <- function(input, output, session) {
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinhos) / 2
     nhos <- round(t(apply(rv$pred$nhos, 2, quantile, prob = p)))
     colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
-    nhos <- cbind(date = rownames(nhos),
+    nhos <- cbind(date = as.Date(rownames(nhos), format = "%d.%m.%Y"),
                   as.data.frame(nhos, check.names = FALSE))
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinbed) / 2
     nbed <- round(t(apply(rv$pred$nbed, 2, quantile, prob = p)))
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
-    nbed <- cbind(date = rownames(nbed),
+    nbed <- cbind(date = as.Date(rownames(nbed), format = "%d.%m.%Y"),
                   as.data.frame(nbed, check.names = FALSE))
     list(nhos = nhos, nbed = nbed, pars = pars(), data = data())
 
