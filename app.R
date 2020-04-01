@@ -595,7 +595,7 @@ server <- function(input, output, session) {
 
   output$sim_end_date_ui <- renderUI({
 
-    dm <- max(data_p()$date)
+    dm <- max(data()$date)
     dateInput(inputId = "sim_end_date",
                         label = "Prediction until...",
                         value = dm + 7,
