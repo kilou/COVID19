@@ -9,6 +9,7 @@ source("functions.r")
 data <- import.covid(
   input.file="data/20.03.31 - Données REDCap hôpitaux.xlsx",
   start.date="02/25/2020",
+  end.date=NA,
   date.format="%m/%d/%Y"
 )
 pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
@@ -40,8 +41,8 @@ lag <- rlag(1e06,mlag,vlag)
 histo(lag,p)
 
 # ICU length of stay
-mlos <- 13   # mean LOS
-vlos <- 154  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
+mlos <- 12   # mean LOS
+vlos <- 123  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
 los <- rlos(1e06,mlos,vlos)
 histo(los,p)
 

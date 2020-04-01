@@ -157,8 +157,9 @@ import.ipd <- function(
 # Import data. Input file can be either a file with date, nhos and nicu columns or a file with individual patient data
 import.covid <- function(
   input.file="data.xlsx", # xlsx input data file
-  start.date=NA,  # return counts only from this date onwards (but counts are cumulated from the start of input.file)
-  date.format="%Y-%m-%d"
+  start.date=NA,          # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+  end.date=NA,            # return counts only up to this date
+  date.format="%Y-%m-%d"  # date format in data file as well as in start.date and end.date
 ){
 
   # Detect file type (individual patient data or counts)
@@ -194,6 +195,10 @@ import.covid <- function(
     start.date <- conv(start.date, format = date.format)
     data <- subset(data,date>=start.date)
   }
+  if (!is.na(end.date)) {
+    end.date <- conv(end.date, format = date.format)
+    data <- subset(data,date<=end.date)
+  }
   data$nhos <- as.integer(data$nhos)
   data$nicu <- as.integer(data$nicu)
   data
@@ -209,6 +214,7 @@ pred.covid <- function(
   ncpu,     # nb of parallel processes (use 1 for serial compiutations)
   seed=1234 # seed for reproducible computations
 ){
+  t0 <- proc.time()
   set.seed(seed)
   
   # Check consistency of dates
@@ -351,6 +357,8 @@ pred.covid <- function(
     }
   }
   colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
+  t1 <- proc.time()
+  cat("Calculations completed in",ceiling((t1-t0)[3]),"seconds","\n"); flush.console()
   list(
     nhos=nhos, # cumulative counts of hospitalized patients
     ninc=ninc, # daily new hopitalized patients
