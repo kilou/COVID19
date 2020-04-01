@@ -154,7 +154,8 @@ ui <- shinyUI(fluidPage(
               selectInput(inputId = "spar",
                           label = "Parameter",
                           choices = list(lam = "lam",
-                                         pic = "pic",
+                                         icp = "icp",
+                                         adp = "adp",
                                          lag = "lag",
                                          los = "los")),
 
@@ -459,8 +460,10 @@ server <- function(input, output, session) {
           hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
           hot_validate_numeric(cols = "mlam", min = 1) %>%
           hot_validate_numeric(cols = "vlam", min = 0) %>%
-          hot_validate_numeric(cols = "mpic", min = 0, max = 1) %>%
-          hot_validate_numeric(cols = "vpic", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "micp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vicp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "madp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vadp", min = 0, max = 1) %>%
           hot_validate_numeric(cols = "mlag", min = 0) %>%
           hot_validate_numeric(cols = "vlag", min = 0) %>%
           hot_validate_numeric(cols = "mlos", min = 0) %>%
@@ -539,6 +542,8 @@ server <- function(input, output, session) {
 
   output$par_hist <- renderPlot({
 
+    req(input$sdate)
+
     p <- input$spar
     d <- input$sdate
     i <- pars()$date %>% {!is.na(.) & . == d}
@@ -608,8 +613,8 @@ server <- function(input, output, session) {
 
   observeEvent(input$submit, {
 
-    miss_param_0  <- any(is.na(pars()[c("date", "mpic", "vpic", "mlag",
-                                        "vlag", "mlos", "vlos")]))
+    miss_param_0  <- any(is.na(pars()[c("date", "micp", "vicp", "madp", "vadp",
+                                        "mlag", "vlag", "mlos", "vlos")]))
 
     i <- 1
     if (rv$is_data_ready) {
