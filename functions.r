@@ -78,7 +78,7 @@ histo <- function(x,prob){
   } else {
     plot(c(0,1),c(0,1),type="n",axes=FALSE,xlab="",ylab="",yaxs="i")
     polygon(c(0.48,0.52,0.52,0.48),c(0,0,1,1),col=rgb(rgb.blue,alpha=0.5))
-    axis(side=1,at=0.5,labels=madp)
+    axis(side=1,at=0.5,labels=mean(x))
     abline(h=0)
   }
 }
