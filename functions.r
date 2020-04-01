@@ -66,13 +66,20 @@ rgb.blue <- t(col2rgb("#428bca"))/255
 # ------------------------------------------------------------------------------------------------------
 # Histogram for parameters
 histo <- function(x,prob){
-  h <- hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE)
-  if(!is.null(prob)){
-    stopifnot(length(prob)==3)
-    q <- quantile(x,probs=prob)
-    abline(v=q[c(1,3)],lty=2,lwd=2,col="red")
-    abline(v=q[2],lwd=2,col="red")
-    mtext(paste0(100*prob,"%"),side=3,at=q,line=c(0,0.7,0),col="red",cex=0.8)
+  if(var(x)>0){
+    h <- hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE)
+    if(!is.null(prob)){
+      stopifnot(length(prob)==3)
+      q <- quantile(x,probs=prob)
+      abline(v=q[c(1,3)],lty=2,lwd=2,col="red")
+      abline(v=q[2],lwd=2,col="red")
+      mtext(paste0(100*prob,"%"),side=3,at=q,line=c(0,0.7,0),col="red",cex=0.8)
+    }
+  } else {
+    plot(c(0,1),c(0,1),type="n",axes=FALSE,xlab="",ylab="",yaxs="i")
+    polygon(c(0.48,0.52,0.52,0.48),c(0,0,1,1),col=rgb(rgb.blue,alpha=0.5))
+    axis(side=1,at=0.5,labels=madp)
+    abline(h=0)
   }
 }
 
