@@ -28,11 +28,17 @@ vlam <- 0.08  # variability
 lam <- rlam(1e06,mlam,vlam)
 histo(lam,p)
 
-# Proportion of hospitalized patients that will require IC
-mpic <- 0.2  # median proportion
-vpic <- 0.10  # variability
-pic <- rpic(1e06,mpic,vpic)
-histo(pic,p)
+# Proportion of hospitalized patients that will require IC at some point
+micp <- 0.2  # median proportion
+vicp <- 0.10 # variability
+icp <- ricp(1e06,micp,vicp)
+histo(icp,p)
+
+# Proportion of patients that will require IC at some point and who will be admitted in ICU at the end of their lag
+madp <- 1    # median proportion (should be 1 in absence of restriction)
+vadp <- 0.10 # variability
+adp <- radp(1e06,madp,vadp)
+histo(adp,p)
 
 # Lag between hospitalization and ICU admission (only for patients that will require in ICU!)
 mlag <- 2  # mean lag
@@ -41,8 +47,8 @@ lag <- rlag(1e06,mlag,vlag)
 histo(lag,p)
 
 # ICU length of stay
-mlos <- 12   # mean LOS
-vlos <- 123  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
+mlos <- 13   # mean LOS
+vlos <- 154  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
 los <- rlos(1e06,mlos,vlos)
 histo(los,p)
 
@@ -50,7 +56,7 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=15,nsim=2000,pars,data,ncpu=4)
+pred <- pred.covid(nday=60,nsim=2000,pars,data,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)
@@ -83,7 +89,6 @@ nhos <- subset(data,date>=today-15)$nhos
 lam <- nhos[-1]/nhos[-length(nhos)]
 mean(lam)
 sd(lam)
-
 
 lam <- data$nhos[-1]/data$nhos[-nrow(data)]
 plot(data$date[-1],lam)
