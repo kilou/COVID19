@@ -154,7 +154,8 @@ ui <- shinyUI(fluidPage(
               selectInput(inputId = "spar",
                           label = "Parameter",
                           choices = list(lam = "lam",
-                                         pic = "pic",
+                                         icp = "icp",
+                                         adp = "adp",
                                          lag = "lag",
                                          los = "los")),
 
@@ -199,7 +200,13 @@ ui <- shinyUI(fluidPage(
 
             column(2,
 
-              uiOutput("end_date_ui")
+              uiOutput("sim_start_date_ui")
+
+            ),
+
+            column(2,
+
+              uiOutput("sim_end_date_ui")
 
             ),
 
@@ -238,13 +245,13 @@ ui <- shinyUI(fluidPage(
 
           #################
 
-            column(3,
+            column(4,
 
               uiOutput("pinhos_ui")
 
             ),
 
-            column(3,
+            column(4,
 
               uiOutput("pinbed_ui")
 
@@ -438,8 +445,6 @@ server <- function(input, output, session) {
         row_err_lag <- which(pars()$vlag < pars()$mlag) - 1
         col_err_los <- which(names(pars()) %in% c("mlos", "vlos")) - 1
         row_err_los <- which(pars()$vlos < pars()$mlos) - 1
-        col_dis_lam <- which(names(pars()) %in% c("mlam", "vlam")) - 1
-        row_dis_lam <- as.integer(c())
         if (rv$is_data_ready) {
           if (nrow(data()) > 1) {
             row_dis_lam <-
@@ -451,14 +456,14 @@ server <- function(input, output, session) {
                       col_err_lag = col_err_lag, 
                       row_err_lag = row_err_lag,
                       col_err_los = col_err_los, 
-                      row_err_los = row_err_los,
-                      col_dis_lam = col_dis_lam, 
-                      row_dis_lam = row_dis_lam) %>%
+                      row_err_los = row_err_los) %>%
           hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
           hot_validate_numeric(cols = "mlam", min = 1) %>%
           hot_validate_numeric(cols = "vlam", min = 0) %>%
-          hot_validate_numeric(cols = "mpic", min = 0, max = 1) %>%
-          hot_validate_numeric(cols = "vpic", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "micp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vicp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "madp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vadp", min = 0, max = 1) %>%
           hot_validate_numeric(cols = "mlag", min = 0) %>%
           hot_validate_numeric(cols = "vlag", min = 0) %>%
           hot_validate_numeric(cols = "mlos", min = 0) %>%
@@ -475,10 +480,6 @@ server <- function(input, output, session) {
                   hclos = hclos instanceof Array ? hclos : [hclos]
                   hrlos = instance.params.row_err_los
                   hrlos = hrlos instanceof Array ? hrlos : [hrlos]
-                  hclam = instance.params.col_dis_lam
-                  hclam = hclam instanceof Array ? hclam : [hclam]
-                  hrlam = instance.params.row_dis_lam
-                  hrlam = hrlam instanceof Array ? hrlam : [hrlam]
               }
               if (instance.params && hclag.includes(col) &&
                     hrlag.includes(row)) {
@@ -487,10 +488,6 @@ server <- function(input, output, session) {
               if (instance.params && hclos.includes(col) &&
                     hrlos.includes(row)) {
                 td.style.background = 'red';
-              }
-              if (instance.params && hclam.includes(col) &&
-                    hrlam.includes(row)) {
-                td.style.background = 'lightgrey';
               }
             }")
 
@@ -545,6 +542,8 @@ server <- function(input, output, session) {
 
   output$par_hist <- renderPlot({
 
+    req(input$sdate)
+
     p <- input$spar
     d <- input$sdate
     i <- pars()$date %>% {!is.na(.) & . == d}
@@ -574,29 +573,52 @@ server <- function(input, output, session) {
 
 # -------------------------------- FORECASTS -------------------------------- #
 
-  output$end_date_ui <- renderUI({
-    dm <- max(data()$date)
-    dateInput(inputId = "end_date",
+  output$sim_start_date_ui <- renderUI({
+
+    d1 <- min(data()$date)
+    d2 <- max(data()$date)
+    dateInput(inputId = "sim_start_date",
+                        label = "Prediction from...",
+                        value = d2 + 1,
+                        min = d1 + 1,
+                        max = d2 + 1,
+                        format = "yyyy-mm-dd")
+
+  })
+
+  # data used for prediction
+  data_p <- reactive({
+
+    subset(data(), date < input$sim_start_date)
+
+  })
+
+  output$sim_end_date_ui <- renderUI({
+
+    dm <- max(data_p()$date)
+    dateInput(inputId = "sim_end_date",
                         label = "Prediction until...",
                         value = dm + 7,
                         min = dm + 1,
                         max = NULL,
                         format = "yyyy-mm-dd")
+
   })
 
   nday <- reactive({
 
-    input$end_date - max(data()$date)
+    input$sim_end_date - max(data_p()$date)
 
   })
 
   observeEvent(input$submit, {
 
-    miss_param_0  <- any(is.na(pars()[c("date", "mpic", "vpic", "mlag",
-                                        "vlag", "mlos", "vlos")]))
+    miss_param_0  <- any(is.na(pars()[c("date", "micp", "vicp", "madp", "vadp",
+                                        "mlag", "vlag", "mlos", "vlos")]))
+
     i <- 1
     if (rv$is_data_ready) {
-      b <- pars()$date <= max(data()$date)
+      b <- pars()$date <= max(data_p()$date)
       if (any(b)) i <- max(which(b))
     }
     miss_param_1 <- any(is.na(pars()[i:nrow(pars()), c("mlam", "vlam")]))
@@ -630,7 +652,7 @@ server <- function(input, output, session) {
     show_modal_spinner() # show the modal window
 
     rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(),
-                          data(), ncpu = 8)
+                          data_p(), ncpu = 8)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
 
@@ -704,7 +726,7 @@ server <- function(input, output, session) {
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = as.Date(rownames(nbed), format = "%d.%m.%Y"),
                   as.data.frame(nbed, check.names = FALSE))
-    list(nhos = nhos, nbed = nbed, pars = pars(), data = data())
+    list(nhos = nhos, nbed = nbed, pars = pars(), data = data_p())
 
   })
 
