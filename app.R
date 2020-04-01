@@ -461,9 +461,9 @@ server <- function(input, output, session) {
           hot_validate_numeric(cols = "mlam", min = 1) %>%
           hot_validate_numeric(cols = "vlam", min = 0) %>%
           hot_validate_numeric(cols = "micp", min = 0, max = 1) %>%
-          hot_validate_numeric(cols = "vicp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vicp", min = 0) %>%
           hot_validate_numeric(cols = "madp", min = 0, max = 1) %>%
-          hot_validate_numeric(cols = "vadp", min = 0, max = 1) %>%
+          hot_validate_numeric(cols = "vadp", min = 0) %>%
           hot_validate_numeric(cols = "mlag", min = 0) %>%
           hot_validate_numeric(cols = "vlag", min = 0) %>%
           hot_validate_numeric(cols = "mlos", min = 0) %>%
