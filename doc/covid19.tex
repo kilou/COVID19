@@ -68,8 +68,8 @@ A voir : $\mu_k \independent Y_{k-1} \implies Y_k \sim \text{Log-normal}$
 \begin{definition}
 
   Let $p_k$ be the proportion of patients hospitalized on day $k$ (incident
-  cases) who will then be admitted to intensive care. The random variable $p_k$
-  follows a logit-normal distribution:
+  cases) who will require intensive care. The random variable $p_k$ follows a
+  logit-normal distribution:
   %
   \[ p_k = \cfrac{\exp(q_k)}{1 + \exp(q_k)}, \]
   %
@@ -77,7 +77,23 @@ A voir : $\mu_k \independent Y_{k-1} \implies Y_k \sim \text{Log-normal}$
   %
   \[ q_k \sim \text{N}(\log(\cfrac{\pi_k}{1-\pi_k}), \tau_k^2). \]
   %
-  Note: $\pi_k$ = \verb|mpic| and $\tau_k^2$ = \verb|vpic|.
+  Note: $\pi_k$ = \verb|micp| and $\tau_k^2$ = \verb|vicp|.
+
+\end{definition}
+
+\begin{definition}
+
+  Let $r_k$ be the proportion of patients requiring intensive care on day $k$
+  who will be admitted in intensive care. The random variable $r_k$ follows a
+  logit-normal distribution:
+  %
+  \[ r_k = \cfrac{\exp(s_k)}{1 + \exp(s_k)}, \]
+  %
+  where
+  %
+  \[ s_k \sim \text{N}(\log(\cfrac{.._k}{1-.._k}), .._k^2). \]
+  %
+  Note: $.._k$ = \verb|madp| and $.._k^2$ = \verb|vadp|.
 
 \end{definition}
 
@@ -108,47 +124,15 @@ A voir : $\mu_k \independent Y_{k-1} \implies Y_k \sim \text{Log-normal}$
 
 \begin{definition}
 
-  Let define the following random variable:
-  %
-  \[
-    I_{j,k,l} =
-    \begin{cases}
-      1 & \parbox[t]{.3\textwidth}{if the $j$th patient hospitalized on day $k$
-          is being treated in intensive care $l$ day later,} \\
-      0 & \text {if not.}
-    \end{cases}
-  \]
-
-\end{definition}
-
-\begin{lemma}
-
-  $P(I_{j,k,l}=1) = \sum\limits_{i=0}^l P(S_k = i, T_k \ge l-i)$
-
-\end{lemma}
-
-\begin{proof}
-
-  \begin{align*}
-    P(I_{j,k,l}=1) &= P(S_k \le l \le S_k + T_k) \\
-                   &= \sum\limits_{i=0}^l P(S_k = i, T_k \ge l-i)
-  \end{align*}
-
-\end{proof}
-
-\begin{definition}
-
   Let $Z_m$ the number of patients treated in intensive care on day $m$.
 
-\end{definition}
-
-\begin{lemma}
-
-  \[ Z_m = \sum\limits_{k=1}^m \sum\limits_{j=1}^{W_k} I_{j,k,m-k} \]
+  \[ Z_m = \sum_{k=1}^m \sum_{j=1}^{W_k} \sum_{l=0}^{m-k} r_{k+l}
+           I_{\{S_k = l, T_k \ge m-k-l\}} \]
   %
-  where $W_k = p_k (Y_k - Y_{k-1})$ with the convention that $Y_0 = 0$.
+  where $W_k = p_k (Y_k - Y_{k-1})$ with the convention that $Y_0 = 0$ and
+  $I_{\{\dots\}}$ is an indicator function.
 
-\end{lemma}
+\end{definition}
 
 
 \begin{lemma}
@@ -162,16 +146,16 @@ A voir : $\mu_k \independent Y_{k-1} \implies Y_k \sim \text{Log-normal}$
 \begin{proof}
 
   \begin{align*}
-    E(Z_m) &= E(\sum_{k=1}^m W_k I_{j,k,m-k}) \\
-           &= \sum_{k=1}^m E(p_k) (E(Y_k) - E(Y_{k-1})) E(I_{j,k,m-k}) \\
+    E(Z_m) &= E(\sum_{k=1}^m W_k \sum_{l=0}^{m-k} r_{k+l}
+                I_{\{S_k = l, T_k \ge m-k-l\}}) \\
+           &= \sum_{k=1}^m E(p_k) (E(Y_k) - E(Y_{k-1})) \dots \\
     E(p_k) &\approx \cfrac{1}{K-1} \sum_{i=1}^{K-1}
                     \text{logit}(\Phi_{.,.}^{-1}(i/K)) \\
     E(Y_k) &= (1 + \exp(log(\lambda_k-1)+\sigma_k^2/2) E(Y_{k-1}) \\
-    E(I_{j,k,m-k}) &= \sum_{i=0}^l P(S_k = i, T_k \ge l-i) \\
-                   &= \sum_{i=0}^l P(S_k = i) P(T_k \ge l-i)
+    E(I_{\{\dots\}}) &= P(S_k = l, T_k \ge m-k-l) \\
+                     &= P(S_k = l) P(T_k \ge m-k-l)
   \end{align*}
 
 \end{proof}
-
 
 \end{document}
