@@ -287,6 +287,9 @@ ui <- shinyUI(fluidPage(
           div(p(strong("Creators:"), "Aziz Chaouch, Yves Eggli,",
                 "Jérôme Pasquier,", "Valentin Rousson and Bastien Trächsel"), 
               p(strong("R Packages:"), paste(pkg_list, collapse = ", ")),
+              p(strong("Soure code:"),
+                a("https://github.com/kilou/COVID19",
+                href="https://github.com/kilou/COVID19")),
               style = "font-family: courier;")
 
         )
