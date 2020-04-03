@@ -496,7 +496,7 @@ server <- function(input, output, session) {
 
       }
 
-  })
+  }) %>% debounce(1000)
 
   observe({
 
