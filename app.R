@@ -528,18 +528,22 @@ server <- function(input, output, session) {
 
   })
 
-  output$sdate_ui <- renderUI({
+  rv$sdate <- min(pars0$date)
 
-    s <- NULL
-    if (rv$is_data_ready) {
-      b <- pars()$date <= max(data()$date)
-      if (any(b)) s <- pars()$date[max(which(b))]
-    }
+  output$sdate_ui <- renderUI({
 
     selectInput(inputId = "sdate",
                 label = "Date",
                 choices = pars()$date,
-                selected = s)
+                selected = rv$sdate)
+
+  })
+
+  observe({
+
+    if (!(rv$sdate %in% pars()$date)) {
+      rv$sdate <- min(pars()$date)
+    }
 
   })
 
