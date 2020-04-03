@@ -289,7 +289,10 @@ ui <- shinyUI(fluidPage(
               p(strong("R Packages:"), paste(pkg_list, collapse = ", ")),
               p(strong("Soure code:"),
                 a("https://github.com/kilou/COVID19",
-                href="https://github.com/kilou/COVID19")),
+                  href="https://github.com/kilou/COVID19")),
+              p(strong("Contact address:"),
+                a("jerome.pasquier@unisante.ch",
+                  href="mailto:jerome.pasquier@unisante.ch")),
               style = "font-family: courier;")
 
         )
