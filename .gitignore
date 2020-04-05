@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+dev/
 doc/*.aux
 doc/*.fdb_latexmk
 doc/*.fls
