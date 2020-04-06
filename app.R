@@ -153,7 +153,7 @@ ui <- shinyUI(fluidPage(
 
               selectInput(inputId = "spar",
                           label = "Parameter",
-                          choices = list(lam = "lam",
+                          choices = list(egp = "egp",
                                          icp = "icp",
                                          adp = "adp",
                                          lag = "lag",
@@ -451,12 +451,6 @@ server <- function(input, output, session) {
         row_err_lag <- which(pars()$vlag < pars()$mlag) - 1
         col_err_los <- which(names(pars()) %in% c("mlos", "vlos")) - 1
         row_err_los <- which(pars()$vlos < pars()$mlos) - 1
-        if (rv$is_data_ready) {
-          if (nrow(data()) > 1) {
-            row_dis_lam <-
-              0:(max(which(pars()$date <= max(data()$date))) - 2)
-          }
-        }
         rhandsontable(mutate(pars(), date = as.character(date)),
                       useTypes = TRUE, stretchH = "all",
                       col_err_lag = col_err_lag, 
@@ -464,8 +458,8 @@ server <- function(input, output, session) {
                       col_err_los = col_err_los, 
                       row_err_los = row_err_los) %>%
           hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
-          hot_validate_numeric(cols = "mlam", min = 1) %>%
-          hot_validate_numeric(cols = "vlam", min = 0) %>%
+          hot_validate_numeric(cols = "megp", min = 1) %>%
+          hot_validate_numeric(cols = "vegp", min = 0) %>%
           hot_validate_numeric(cols = "micp", min = 0, max = 1) %>%
           hot_validate_numeric(cols = "vicp", min = 0) %>%
           hot_validate_numeric(cols = "madp", min = 0, max = 1) %>%
@@ -570,7 +564,7 @@ server <- function(input, output, session) {
     validate(need(pars(), ""))
     p <- paste0("m", input$spar)
     i <- 1
-    if (rv$is_data_ready & p == "mlam") {
+    if (rv$is_data_ready & p == "megp") {
       b <- pars()$date <= max(data()$date)
       if (any(b)) i <- max(which(b))
     }
@@ -631,7 +625,7 @@ server <- function(input, output, session) {
       b <- pars()$date <= max(data_p()$date)
       if (any(b)) i <- max(which(b))
     }
-    miss_param_1 <- any(is.na(pars()[i:nrow(pars()), c("mlam", "vlam")]))
+    miss_param_1 <- any(is.na(pars()[i:nrow(pars()), c("megp", "vegp")]))
 
     if (!rv$is_data_ready) {
 
