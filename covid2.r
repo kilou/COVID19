@@ -7,7 +7,7 @@ source("functions.r")
 
 # Load data and parameters
 data <- import.covid(
-  input.file="data/20.03.31 - Données REDCap hôpitaux.xlsx",
+  input.file="data/20.04.01 - Données REDCap hôpitaux.xlsx",
   start.date="02/25/2020",
   end.date=NA,
   date.format="%m/%d/%Y"
@@ -23,10 +23,10 @@ alpha <- 1-level
 p <- c(alpha/2,0.5,1-alpha/2)
 
 # Growth parameter for nb of hospitalized patients (restricted >=1)
-mlam <- 1.12  # median growth
-vlam <- 0.08  # variability
-lam <- rlam(1e06,mlam,vlam)
-histo(lam,p)
+megp <- 1.12  # median growth
+vegp <- 0.08  # variability
+egp <- regp(1e06,megp,vegp)
+histo(egp,p)
 
 # Proportion of hospitalized patients that will require IC at some point
 micp <- 0.2  # median proportion
@@ -56,7 +56,7 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=15,nsim=2000,pars,data,ncpu=4)
+pred <- pred.covid(nday=60,nsim=2000,pars,data,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)
@@ -67,7 +67,7 @@ plot.covid(pred,what="nbed",prob=p)
 # ------------------------------------------------------------------------------------------------------
 # ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
 ipd <- import.ipd(
-  input.file="data/20.03.31 - Données REDCap hôpitaux.xlsx",
+  input.file="data/20.04.01 - Données REDCap hôpitaux.xlsx",
   input.sheet=1,
   date.format="%m/%d/%Y"
 )
@@ -86,10 +86,10 @@ fit.nb(los,cens)
 # ESTIMATE MEAN AND VARIANCE OF EXPONENTIAL GROWTH PARAMETER ON LAST 15 DAYS
 plot(log(nhos)~date,data=data)
 nhos <- subset(data,date>=today-15)$nhos
-lam <- nhos[-1]/nhos[-length(nhos)]
-mean(lam)
-sd(lam)
+egp <- nhos[-1]/nhos[-length(nhos)]
+mean(egp)
+sd(egp)
 
-lam <- data$nhos[-1]/data$nhos[-nrow(data)]
-plot(data$date[-1],lam)
+egp <- data$nhos[-1]/data$nhos[-nrow(data)]
+plot(data$date[-1],egp)
 

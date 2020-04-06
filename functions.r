@@ -21,11 +21,11 @@ expit <- function(x){exp(x)/(1+exp(x))}
 
 # ------------------------------------------------------------------------------------------------------
 # Random sample for exponential growth parameter (constrained >1)
-rlam <- function(
+regp <- function(
   n,    # nb draws
-  mlam, # median of growth parameter (typically 1.25)
-  vlam  # variability
-){1+exp(rnorm(n,log(mlam-1),sqrt(vlam)))}
+  megp, # median of growth parameter (typically 1.25)
+  vegp  # variability
+){1+exp(rnorm(n,log(megp-1),sqrt(vegp)))}
 
 # ------------------------------------------------------------------------------------------------------
 # Random sample for proportion of hospitalized patients that will require intensive cares at some point (defines disease severity)
@@ -111,12 +111,15 @@ plot.covid <- function(
   }
 
   par(mar=c(3,5,4,3),mgp=c(1.8,0.6,0))
-  plot(range(days),range(c(y,Q)),type="n",xlab="",ylab="",las=1)
+  plot(range(days),range(c(y,Q)),type="n",xlab="",ylab="",las=1,xaxt="n")
+  xdat <- conv(paste0("01.",unique(format(days,"%m.%Y"))),"%d.%m.%Y")
+  axis.Date(side=1,at=xdat,format="%d.%m.%Y",hadj=0)
   ytck1 <- pretty(c(y,Q))
   ytck2 <- seq(min(ytck1),max(ytck1),by=diff(ytck1)[1]/5)
-  abline(h=ytck1,col="grey",lwd=0.5)
-  abline(h=ytck2,col="grey",lwd=0.5,lty=2)
+  abline(h=ytck1,col="grey",lwd=1)
+  abline(h=ytck2,col="grey",lwd=0.5)
   abline(v=days,col="grey",lwd=0.5)
+  abline(v=xdat,col="grey",lwd=1)
   mtext(ylb,side=2,line=2.8)
   title(tit)
   polygon(x=c(days[past],rev(days[past])),y=c(Q[past,1],rev(Q[past,3])),col="lightgrey",border=NA)
@@ -126,7 +129,7 @@ plot.covid <- function(
   points(data$date,y,pch=19,col="black")
   points(days[futur[-1]],Q[futur[-1],2],pch=19,col="red")
   abline(v=today,lty=2)
-  mtext(today,side=3,at=today,line=0.2)
+  mtext(format(today,"%d.%m.%Y"),side=3,at=today,line=0.2)
   abline(h=0)
   legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=1)
   mtext(paste0(100*prob,"%"),side=4,at=Q[nrow(Q),],cex=0.8,las=1,col=c(rgb(rgb.blue),"red",rgb(rgb.blue)),line=0.25)
@@ -234,8 +237,8 @@ pred.covid <- function(
   
   # Get parameters for each day in "days"
   ind <- sapply(days,function(d){max(which(pars$date<=d))})
-  mlam <- pars$mlam[ind]
-  vlam <- pars$vlam[ind]
+  megp <- pars$megp[ind]
+  vegp <- pars$vegp[ind]
   micp <- pars$micp[ind]
   vicp <- pars$vicp[ind]
   madp <- pars$madp[ind]
@@ -250,7 +253,7 @@ pred.covid <- function(
   nhos[,1:j] <- t(data$nhos)[rep(1,nsim),]
   
   # Predict future cumulative counts of hospitalized patients using exponential growth parameter
-  for(k in (j+1):(j+nday)){nhos[,k] <- round(nhos[,k-1]*rlam(nsim,mlam[k],vlam[k]))}
+  for(k in (j+1):(j+nday)){nhos[,k] <- round(nhos[,k-1]*regp(nsim,megp[k],vegp[k]))}
   
   # Calculate daily new hospitalizations (i.e. incident counts)
   ninc <- matrix(nrow=nsim,ncol=j+nday)
