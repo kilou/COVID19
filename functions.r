@@ -224,7 +224,7 @@ import.covid <- function(
     }
     data <- data.frame(date=days,nhos=nhos,nicu=nicu,ndead=ndead)
   } else {
-    # Data with nhos and nicu
+    # Data with nhos, nicu and ndead
     data <- raw
     data$date <- conv(data$date, date.format)
   }
