@@ -59,6 +59,18 @@ rlos <- function(
   vlos  # variability
 ){rnbinom(n,mu=mlos,size=mlos^2/(vlos-mlos))}
 
+plos<- function(
+  q,
+  mlos,
+  vlos
+){pnbinom(q,mu=mlos,size=mlos^2/(vlos-mlos))}
+
+qlos<- function(
+  p,
+  mlos,
+  vlos
+){qnbinom(p,mu=mlos,size=mlos^2/(vlos-mlos))}
+
 # ------------------------------------------------------------------------------------------------------
 # Define RGB code for shiny blue (to be used in rgb() function possibly with alpha transparency)
 rgb.blue <- t(col2rgb("#428bca"))/255
@@ -106,8 +118,18 @@ plot.covid <- function(
   }
   if(what=="nhos"){
     tit <- "Cumulative counts of hospitalized patients"
-    ylb <- "Counts"
+    ylb <- "Number of patients"
     y <- data$nhos
+  }
+  if(what=="ndead_daily"){
+    tit <- "Number of daily deaths"
+    ylb <- "Number of deaths"
+    y <- data$ndead
+  }
+  if(what=="ndead_cumul"){
+    tit <- "Cumulative number of deaths"
+    ylb <- "Number of deaths"
+    y <- cumsum(data$ndead)
   }
 
   par(mar=c(3,5,4,3),mgp=c(1.8,0.6,0))
@@ -152,6 +174,8 @@ import.ipd <- function(
   icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
   hos_out <- conv(raw[,"sortie_hopital"],date.format)
   dead <- raw[,"deces"]
+  home <- (raw[,"issue"]=="domicile")*1
+  trsf <- (raw[,"issue"]=="transfert")*1
   
   # Calculate lag and ICU length of stay
   icu_lag <- icu_in-hos_in
@@ -159,7 +183,7 @@ import.ipd <- function(
   hos_los <- hos_out-hos_in
   
   # Return IPD data
-  data <- cbind.data.frame(id,age,sex,hos_in,icu_in,icu_out,hos_out,dead,icu_lag,icu_los,hos_los)
+  data <- cbind.data.frame(id,age,sex,hos_in,icu_in,icu_out,hos_out,icu_lag,icu_los,hos_los,dead,home,trsf)
   data
 }
 
@@ -186,16 +210,19 @@ import.covid <- function(
     hos_in <- conv(raw[,"arrivee_hopital"],date.format)
     icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
     icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
+    hos_out <- conv(raw[,"sortie_hopital"],date.format)
+    dead <- raw[,"deces"]
     
-    # Calculate daily cumulative count of hospitalized patients and daily nb of patients in ICU
+    # Calculate daily cumulative count of hospitalized patients, daily nb of patients in ICU and daily nb of deaths
     days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
     ndays <- length(days)
-    nhos <- nicu <- numeric(ndays)
+    nhos <- nicu <- ndead <- numeric(ndays)
     for(j in 1:ndays){
       nhos[j] <- sum(hos_in<=days[j],na.rm=T)
       nicu[j] <- sum(icu_in<=days[j] & is.na(icu_out),na.rm=T) + sum(icu_in<=days[j] & icu_out>=days[j],na.rm=T)
+      ndead[j] <- sum(dead==1 & hos_out==days[j],na.rm=T)
     }
-    data <- data.frame(date=days,nhos=nhos,nicu=nicu)
+    data <- data.frame(date=days,nhos=nhos,nicu=nicu,ndead=ndead)
   } else {
     # Data with nhos and nicu
     data <- raw
@@ -211,18 +238,20 @@ import.covid <- function(
   }
   data$nhos <- as.integer(data$nhos)
   data$nicu <- as.integer(data$nicu)
+  data$ndead <- as.integer(data$ndead)
   data
 }
 
 # ------------------------------------------------------------------------------------------------------
 # Forecast nb of ICU beds
 pred.covid <- function(
-  nday,     # nb of days to forecast
-  nsim,     # nb of simulations
-  pars,     # dataframe with parameters
-  data,     # dataframe with VD data
-  ncpu,     # nb of parallel processes (use 1 for serial compiutations)
-  seed=1234 # seed for reproducible computations
+  nday,      # nb of days to forecast
+  nsim,      # nb of simulations
+  pars,      # dataframe with parameters
+  pars_surv, # dataframe with parameters for survival models (no user interaction!)
+  data,      # dataframe with VD data
+  ncpu,      # nb of parallel processes (use 1 for serial compiutations)
+  seed=1234  # seed for reproducible computations
 ){
   t0 <- proc.time()
   set.seed(seed)
@@ -247,7 +276,17 @@ pred.covid <- function(
   vlag <- pars$vlag[ind]
   mlos <- pars$mlos[ind]
   vlos <- pars$vlos[ind]
-
+  
+  # Get parameters for survival models
+  ncat <- nrow(pars_surv) # nb age categories
+  amin <- pars_surv$amin  
+  amax <- pars_surv$amax
+  page <- pars_surv$prob  # proportion of patients in each age category
+  mu1 <- pars_surv$mu1
+  sig1 <- pars_surv$sig1
+  mu2 <- pars_surv$mu2
+  sig2 <- pars_surv$sig2
+  
   # Fill-in observed cumulative count of hospitalized patients
   nhos <- matrix(nrow=nsim,ncol=j+nday)
   nhos[,1:j] <- t(data$nhos)[rep(1,nsim),]
@@ -266,7 +305,7 @@ pred.covid <- function(
   for(k in 1:(j+nday)){nicu[,k] <- round(ricp(nsim,micp[k],vicp[k])*ninc[,k])}
   
   # Calculate nb of ICU beds required (function to be parallelized)
-  fun <- function(s){
+  fun.nbed <- function(s){
     npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
     
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
@@ -296,11 +335,41 @@ pred.covid <- function(
     icu.out <- icu.out[icu.out>0]
     
     # Fill-in bed occupancy matrix in ICU
-    occ <- matrix(0,nrow=length(icu.in),ncol=j+nday)
-    for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(icu.in[i]:icu.out[i]))] <- 1}
+    occ <- matrix(FALSE,nrow=length(icu.in),ncol=j+nday)
+    for(i in 1:nrow(occ)){occ[i,which(c(1:(j+nday))%in%c(icu.in[i]:icu.out[i]))] <- TRUE}
     
     # Return daily nb of occupied ICU beds
     apply(occ,2,sum)
+  }
+  
+  # Calculate nb of daily deaths (function to be parallelized)
+  fun.ndead <- function(s){
+    npat <- ninc[s,] # nb of new patients hospitalized each day
+    
+    hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day
+
+    A <- t(rmultinom(sum(npat),size=1,prob=page))
+    hos.los <- h1 <- h2 <- numeric(sum(npat))
+    for(k in 1:ncat){
+      pos <- which(A[,k]==1)
+      
+      # Generate LOS
+      hos.los[pos] <- floor(rweibull(length(pos),shape=1/sig2[k],scale=exp(mu2[k])))
+      
+      # Calculate instant hazards h1 and h2
+      t <- hos.los[pos]
+      t[t==0] <- 0.001
+      h1[pos] <- exp((log(t)-mu1[k])/sig1[k])/(sig1[k]*t)
+      h2[pos] <- exp((log(t)-mu2[k])/sig2[k])/(sig2[k]*t)
+    }
+    hos.out <- hos.in+hos.los
+    pdead <- h1/h2
+    dead <- sapply(pdead,rbinom,n=1,size=1)
+    
+    # Calculate daily nb of deaths
+    ndead <- integer(j+nday)
+    for(k in 1:(j+nday)){ndead[k] <- sum(dead[which(hos.out==k)])}
+    ndead
   }
   
   # Run serial/parallel calculations
@@ -308,23 +377,29 @@ pred.covid <- function(
     require(snowfall)
     sfInit(parallel=TRUE, cpus=ncpu)
     sfExportAll() 
-    nbed <- t(sfSapply(1:nsim, fun))
+    nbed <- t(sfSapply(1:nsim, fun.nbed))
+    ndead <- t(sfSapply(1:nsim, fun.ndead))
     sfStop()
   } else {
-    nbed <- matrix(nrow=nsim,ncol=j+nday)
+    nbed <- ndead <- matrix(nrow=nsim,ncol=j+nday)
     for(s in 1:nsim){
       cat("Progress: ",round(100*s/nsim),"%\r",sep=""); flush.console()
-      nbed[s,] <- fun(s)
+      nbed[s,] <- fun.nbed(s)
+      ndead[s,] <- fun.ndead(s)
     }
   }
-  colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
+  colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- colnames(ndead) <- format(days,format="%d.%m.%Y")
+  ndead_cumul <- t(apply(ndead,1,cumsum))
+  
   t1 <- proc.time()
   cat("Calculations completed in",ceiling((t1-t0)[3]),"seconds","\n"); flush.console()
   list(
-    nhos=nhos, # cumulative counts of hospitalized patients
-    ninc=ninc, # daily new hopitalized patients
-    nbed=nbed, # predicted nb of occupied ICU beds
-    data=data  # return data (for plotting)
+    nhos=nhos,   # cumulative counts of hospitalized patients
+    ninc=ninc,   # daily new hopitalized patients
+    nbed=nbed,   # predicted nb of occupied ICU beds
+    ndead_daily=ndead,       # predicted nb of daily deaths
+    ndead_cumul=ndead_cumul, # predicted cumulative number of deaths
+    data=data    # return data (for plotting)
   )
 }
 
@@ -367,4 +442,43 @@ fit.nb <- function(
   best <- rev(order(ll))[1]
   
   list(mean=grid$m[best],variance=grid$v[best],loglik=ll[best])
+}
+
+fit.wb <- function(
+  x,          # count vector (e.g. nb of days)
+  cens=NULL   # binary indicator for right-censored (1) or observed (0) data. If NULL, x is fully observed
+){
+  x <- as.numeric(x)
+  if(is.null(cens)){cens <- 0*x}
+  
+  # Remove missing values
+  keep <- which(!is.na(x))
+  x <- x[keep]
+  cens <- cens[keep]
+  
+  # Create bounds for interval censoring
+  left <- x
+  right <- x+1
+  right[cens==1] <- Inf
+  
+  # Define interval-censoring log-likelihood for weibull distribution
+  # This may still be subject to numerical issue with ll=-Inf when P(right)=P(left) although right>left
+  wb.llik <- function(pars,left,right){
+    a <- exp(pars[1])
+    b <- exp(pars[2])
+    ll <- log(pweibull(right,shape=a,scale=b)-pweibull(left,shape=a,scale=b))
+    sum(ll)
+  }
+  
+  # Initial values
+  # see https://stats.stackexchange.com/questions/230937/how-to-find-initial-values-for-weibull-mle-in-r
+  xs <- sort(x+1e-06)
+  Fh <- ppoints(xs)
+  a0 <- lm(log(-log(1-Fh))~log(xs))$coefficients[2]
+  b0 <- quantile(x,prob=0.632)
+  
+  # Optimisation
+  opt <- optim(par=c(log(a0),log(b0)),fn=wb.llik,left=left,right=right,method="BFGS",control=list(fnscale=-1,maxit=1000))
+
+  list(shape=exp(opt$par[1]),scale=exp(opt$par[2]),loglik=opt$value)
 }
