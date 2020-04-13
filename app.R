@@ -27,6 +27,7 @@ source("functions.r")
 # Load known parameters
 pars0 <- as.data.frame(read_xlsx("params.xlsx"))
 pars0$date <- conv(pars0$date, format = "%d.%m.%Y")
+pars_surv <- as.data.frame(read_xlsx("params_surv.xlsx"))
 
 
 # =========================================================================== #
@@ -210,6 +211,8 @@ ui <- shinyUI(fluidPage(
 
             ),
 
+            column(1, ),
+
             column(2,
 
               strong("Compute forecasts"),
@@ -245,20 +248,25 @@ ui <- shinyUI(fluidPage(
 
           #################
 
-            column(4,
+            column(3,
 
               uiOutput("pinhos_ui")
 
             ),
 
-            column(4,
+            column(3,
 
               uiOutput("pinbed_ui")
+
+            ),
+
+            column(3,
+
+              uiOutput("pindead_ui")
 
             )
 
           ),
-
 
           fluidRow(
 
@@ -269,6 +277,12 @@ ui <- shinyUI(fluidPage(
           fluidRow(
 
             plotOutput("plot_fc_nbed")
+
+          ),
+
+          fluidRow(
+
+            plotOutput("plot_fc_ndead")
 
           )
 
@@ -655,7 +669,7 @@ server <- function(input, output, session) {
 
     show_modal_spinner() # show the modal window
 
-    rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(),
+    rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(), pars_surv,
                           data_p(), ncpu = 8)
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
@@ -700,6 +714,19 @@ server <- function(input, output, session) {
 
   })
 
+  output$pindead_ui <- renderUI({
+
+    req(rv$pred)
+
+    numericInput(inputId = "pindead",
+                 label = "PI length for cumulative counts of deaths",
+                 value = 0.9,
+                 min = 0,
+                 max = 1,
+                 step = 0.05)
+
+  })
+
   output$plot_fc_nhos <- renderPlot({
 
     validate(need(rv$pred, ""), need(input$pinhos, ""))
@@ -718,6 +745,15 @@ server <- function(input, output, session) {
 
   })
 
+  output$plot_fc_ndead <- renderPlot({
+
+    validate(need(rv$pred, ""), need(input$pindead, ""))
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinbed) / 2
+    pred <- rv$pred
+    plot.covid(pred, what = "ndead_cumul", prob = p)
+
+  })
+
   fc_table <- reactive({
 
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinhos) / 2
@@ -730,7 +766,13 @@ server <- function(input, output, session) {
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = as.Date(rownames(nbed), format = "%d.%m.%Y"),
                   as.data.frame(nbed, check.names = FALSE))
-    list(nhos = nhos, nbed = nbed, pars = pars(), data = data_p())
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pindead) / 2
+    ndead <- round(t(apply(rv$pred$ndead_cumul, 2, quantile, prob = p)))
+    colnames(ndead) <- c("ndead", colnames(ndead)[2:3])
+    ndead <- cbind(date = as.Date(rownames(ndead), format = "%d.%m.%Y"),
+                  as.data.frame(ndead, check.names = FALSE))
+    list(nhos = nhos, nbed = nbed, ndead = ndead,
+         pars = pars(), data = data_p())
 
   })
 
