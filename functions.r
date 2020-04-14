@@ -224,7 +224,7 @@ import.covid <- function(
     }
     data <- data.frame(date=days,nhos=nhos,nicu=nicu,ndead=ndead)
   } else {
-    # Data with nhos, nicu and ndead
+    # Data with nhos, nicu and possibly ndead
     data <- raw
     data$date <- conv(data$date, date.format)
   }
@@ -238,7 +238,9 @@ import.covid <- function(
   }
   data$nhos <- as.integer(data$nhos)
   data$nicu <- as.integer(data$nicu)
-  data$ndead <- as.integer(data$ndead)
+  if (any(names(data) == "ndead")) {
+    data$ndead <- as.integer(data$ndead)
+  }
   data
 }
 
