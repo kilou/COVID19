@@ -303,7 +303,8 @@ ui <- shinyUI(fluidPage(
           br(),
 
           div(p(strong("Creators:"), "Aziz Chaouch, Yves Eggli,",
-                "Jérôme Pasquier,", "Valentin Rousson and Bastien Trächsel"), 
+                "Isabella Locatelli, Jérôme Pasquier, Valentin Rousson", 
+                "and Bastien Trächsel"), 
               p(strong("R Packages:"), paste(pkg_list, collapse = ", ")),
               p(strong("Soure code:"),
                 a("https://github.com/kilou/COVID19",
