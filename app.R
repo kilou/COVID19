@@ -201,19 +201,19 @@ ui <- shinyUI(fluidPage(
 
           fluidRow(
 
-            column(2,
+            column(3,
 
               uiOutput("sim_start_date_ui")
 
             ),
 
-            column(2,
+            column(3,
 
               uiOutput("sim_end_date_ui")
 
             ),
 
-            column(1, ),
+            # column(2, ),
 
             column(2,
 
@@ -254,21 +254,9 @@ ui <- shinyUI(fluidPage(
 
             column(3,
 
-              uiOutput("pinhos_ui")
+              uiOutput("pinlen_ui")
 
             ),
-
-            column(3,
-
-              uiOutput("pinbed_ui")
-
-            ),
-
-            column(3,
-
-              uiOutput("pindead_ui")
-
-            )
 
           ),
 
@@ -729,54 +717,23 @@ server <- function(input, output, session) {
 
   #####################
 
-  output$pinhos_ui <- renderUI({
+  output$pinlen_ui <- renderUI({
 
     req(rv$pred)
 
-    numericInput(inputId = "pinhos",
-                 label = paste("PI length for cumulative counts of",
-                               "hospitalized patients"),
+    numericInput(inputId = "pilen",
+                 label = "Prediction interval length",
                  value = 0.9,
                  min = 0,
                  max = 1,
                  step = 0.05)
-
-  })
-
-  output$pinbed_ui <- renderUI({
-
-    req(rv$pred)
-
-    numericInput(inputId = "pinbed",
-                 label = "PI length for number of occupied beds in ICUs",
-                 value = 0.9,
-                 min = 0,
-                 max = 1,
-                 step = 0.05)
-
-  })
-
-  output$pindead_ui <- renderUI({
-
-    if (rv$is_fc_ndead) {
-
-      req(rv$pred)
-
-      numericInput(inputId = "pindead",
-                   label = "PI length for cumulative counts of deaths",
-                   value = 0.9,
-                   min = 0,
-                   max = 1,
-                   step = 0.05)
-
-    }
 
   })
 
   output$plot_fc_nhos <- renderPlot({
 
-    validate(need(rv$pred, ""), need(input$pinhos, ""))
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinhos) / 2
+    validate(need(rv$pred, ""), need(input$pilen, ""))
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pilen) / 2
     pred <- rv$pred
     plot.covid(pred, what = "nhos", prob = p)
 
@@ -784,8 +741,8 @@ server <- function(input, output, session) {
 
   output$plot_fc_nbed <- renderPlot({
 
-    validate(need(rv$pred, ""), need(input$pinbed, ""))
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinbed) / 2
+    validate(need(rv$pred, ""), need(input$pilen, ""))
+    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pilen) / 2
     pred <- rv$pred
     plot.covid(pred, what = "nbed", prob = p)
 
@@ -795,8 +752,8 @@ server <- function(input, output, session) {
 
     if (rv$is_fc_ndead) {
 
-      validate(need(rv$pred, ""), need(input$pindead, ""))
-      p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pindead) / 2
+      validate(need(rv$pred, ""), need(input$pilen, ""))
+      p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pilen) / 2
       pred <- rv$pred
       plot.covid(pred, what = "ndead_cumul", prob = p)
 
@@ -810,13 +767,13 @@ server <- function(input, output, session) {
 
   fc_table <- reactive({
 
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinhos) / 2
+    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pilen) / 2
+
     nhos <- round(t(apply(rv$pred$nhos, 2, quantile, prob = p)))
     colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
     nhos <- cbind(date = as.Date(rownames(nhos), format = "%d.%m.%Y"),
                   as.data.frame(nhos, check.names = FALSE))
 
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinbed) / 2
     nbed <- round(t(apply(rv$pred$nbed, 2, quantile, prob = p)))
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = as.Date(rownames(nbed), format = "%d.%m.%Y"),
@@ -824,7 +781,6 @@ server <- function(input, output, session) {
 
     if (rv$is_fc_ndead) {
 
-      p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pindead) / 2
       ndead <- round(t(apply(rv$pred$ndead_cumul, 2, quantile, prob = p)))
       colnames(ndead) <- c("ndead", colnames(ndead)[2:3])
       ndead <- cbind(date = as.Date(rownames(ndead), format = "%d.%m.%Y"),
