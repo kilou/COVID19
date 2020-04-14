@@ -776,8 +776,8 @@ server <- function(input, output, session) {
 
     validate(need(rv$pred, ""), need(input$pinhos, ""))
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinhos) / 2
-    pred2 <- rv$pred
-    plot.covid(pred2, what = "nhos", prob = p)
+    pred <- rv$pred
+    plot.covid(pred, what = "nhos", prob = p)
 
   })
 
