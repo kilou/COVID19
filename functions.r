@@ -103,8 +103,8 @@ plot.covid <- function(
   prob=c(0.025,0.5,0.975) # quantiles to plot (length=3!)
 ){
   stopifnot(length(prob)==3)
-  if(is.null(data$ndead) & length(grep("ndead",what,fixed=TRUE))>0){stop("Mortality data unavailable!")}
   data <- object.covid$data
+  if(is.null(data$ndead) & length(grep("ndead",what,fixed=TRUE))>0){stop("Mortality data unavailable!")}
   X <- object.covid[[what]]
   Q <- t(apply(X,2,quantile,probs=prob))
   days <- as.Date(strptime(colnames(X),format="%d.%m.%Y"))

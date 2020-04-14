@@ -247,6 +247,8 @@ ui <- shinyUI(fluidPage(
           # uiOutput("data"),
           # uiOutput("days"),
           # uiOutput("pred_nhos"),
+          # uiOutput("pred_ndead_cumul"),
+          # uiOutput("is_fc_ndead"),
 
           #################
 
@@ -719,8 +721,10 @@ server <- function(input, output, session) {
 
   # output$pars <- renderTable({ pars() })
   # output$data <- renderTable({ data() })
-  # output$pred_nhos <- renderTable({ rv$pred$nhos })
   # output$days <- renderText({ paste(as.character(rv$days), collapse=" ") })
+  # output$pred_nhos <- renderTable({ rv$pred$nhos })
+  # output$pred_ndead_cumul <- renderTable({ rv$pred$ndead_cumul })
+  # output$is_fc_ndead <- renderText({ as.character(rv$is_fc_ndead) })
 
   #####################
 
@@ -772,8 +776,8 @@ server <- function(input, output, session) {
 
     validate(need(rv$pred, ""), need(input$pinhos, ""))
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinhos) / 2
-    pred <- rv$pred
-    plot.covid(pred, what = "nhos", prob = p)
+    pred2 <- rv$pred
+    plot.covid(pred2, what = "nhos", prob = p)
 
   })
 
@@ -791,7 +795,7 @@ server <- function(input, output, session) {
     if (rv$is_fc_ndead) {
 
       validate(need(rv$pred, ""), need(input$pindead, ""))
-      p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinbed) / 2
+      p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pindead) / 2
       pred <- rv$pred
       plot.covid(pred, what = "ndead_cumul", prob = p)
 
