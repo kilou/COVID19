@@ -103,6 +103,7 @@ plot.covid <- function(
   prob=c(0.025,0.5,0.975) # quantiles to plot (length=3!)
 ){
   stopifnot(length(prob)==3)
+  if(is.null(data$ndead) & length(grep("ndead",what,fixed=TRUE))>0){stop("Mortality data unavailable!")}
   data <- object.covid$data
   X <- object.covid[[what]]
   Q <- t(apply(X,2,quantile,probs=prob))
@@ -238,7 +239,7 @@ import.covid <- function(
   }
   data$nhos <- as.integer(data$nhos)
   data$nicu <- as.integer(data$nicu)
-  data$ndead <- as.integer(data$ndead)
+  if(!is.null(data$ndead)){data$ndead <- as.integer(data$ndead)}
   data
 }
 
@@ -263,6 +264,7 @@ pred.covid <- function(
   today <- data$date[nrow(data)]       # today i.e. last date entered in data
   days <- c(data$date,today+c(1:nday)) # vector of days for observed data and predictions
   j <- which(days==today)              # index of today
+  has.ndead <- !is.null(data$ndead)    # check if mortality data are provided (they may be missing if data is not based on individual patient data)
   
   # Get parameters for each day in "days"
   ind <- sapply(days,function(d){max(which(pars$date<=d))})
@@ -378,18 +380,23 @@ pred.covid <- function(
     sfInit(parallel=TRUE, cpus=ncpu)
     sfExportAll() 
     nbed <- t(sfSapply(1:nsim, fun.nbed))
-    ndead <- t(sfSapply(1:nsim, fun.ndead))
+    if(has.ndead){ndead <- t(sfSapply(1:nsim, fun.ndead))}
     sfStop()
   } else {
     nbed <- ndead <- matrix(nrow=nsim,ncol=j+nday)
     for(s in 1:nsim){
       cat("Progress: ",round(100*s/nsim),"%\r",sep=""); flush.console()
       nbed[s,] <- fun.nbed(s)
-      ndead[s,] <- fun.ndead(s)
+      if(has.ndead){ndead[s,] <- fun.ndead(s)}
     }
   }
-  colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- colnames(ndead) <- format(days,format="%d.%m.%Y")
-  ndead_cumul <- t(apply(ndead,1,cumsum))
+  colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
+  if(has.ndead){
+    colnames(ndead) <- format(days,format="%d.%m.%Y")
+    ndead_cumul <- t(apply(ndead,1,cumsum))
+  } else {
+    ndead <- ndead_cumul <- NULL
+  }
   
   t1 <- proc.time()
   cat("Calculations completed in",ceiling((t1-t0)[3]),"seconds","\n"); flush.console()

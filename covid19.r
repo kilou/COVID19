@@ -8,6 +8,7 @@ source("functions.r")
 # Load data and parameters
 data <- import.covid(
   input.file="data/20.04.09 - Données REDCap hôpitaux anonymisés.xlsx",
+  #input.file="data/data_09042020.xlsx",
   start.date="02/25/2020",
   end.date="04/08/2020",
   date.format="%m/%d/%Y"
