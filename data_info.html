@@ -21,21 +21,25 @@ td, th {
 <!-- <h4 style="text-align: left">Aggregated data</h4> -->
 
 <p style="font-size: 1.5rem; text-align: left">
-  An aggregated data file contains three columns 
+  An aggregated data file contains three mandatory columns (+ one optional): 
 </p>
 
 <table style="font-size: 1.5rem">
   <tr>
-    <td>date</td>
+    <td>date (mandatory)</td> 
     <td>You can specify the format in the field "Date format"</td>
   </tr>
   <tr>
-    <td>nhos</td>
+    <td>nhos (mandatory)</td>
     <td>Cumulative counts of hospitalized patients current</td>
   </tr>
   <tr>
-    <td>nicu</td>
+    <td>nicu (mandatory)</td>
     <td>Current number of occupied beds in ICUs</td>
+  </tr>
+  <tr>
+    <td>ndead (optional)</td>
+    <td>Daily number of deaths</td>
   </tr>
  </table>
 
@@ -58,5 +62,9 @@ td, th {
   <tr>
     <td>fin_soins_intensifs</td>
     <td>Intensive care discharge date (date format or empty)</td>
+  </tr>
+  <tr>
+    <td>deces</td>
+    <td>Binary indicator for death (1=patient is dead; 0=patient is alive)</td>
   </tr>
  </table>

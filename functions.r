@@ -371,6 +371,7 @@ pred.covid <- function(
     # Calculate daily nb of deaths
     ndead <- integer(j+nday)
     for(k in 1:(j+nday)){ndead[k] <- sum(dead[which(hos.out==k)])}
+    #ndead[1:j] <- data$ndead
     ndead
   }
   
