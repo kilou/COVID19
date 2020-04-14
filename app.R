@@ -118,7 +118,9 @@ ui <- shinyUI(fluidPage(
             # Output: Plot of the data
             plotOutput("plot_nhos"),
 
-            plotOutput("plot_nicu")
+            plotOutput("plot_nicu"),
+
+            plotOutput("plot_ndead")
 
           )
 
@@ -357,16 +359,23 @@ server <- function(input, output, session) {
   })
 
   # Is data ready?
-  rv$is_data_ready <- FALSE
+  rv$is_data <- FALSE
   observe({
     req(input_data())
-    rv$is_data_ready <- TRUE
+    rv$is_data <- TRUE
+  })
+
+  # Check if data contain a `ndead` column
+  rv$is_ndead <- FALSE
+  observe({
+    req(input_data())
+    rv$is_ndead <- any(names(input_data()) == "ndead")
   })
 
   # Correct date format
   observe(
 
-    if (rv$is_data_ready) {
+    if (rv$is_data) {
 
       if (any(is.na(input_data()$date))) {
 
@@ -408,8 +417,15 @@ server <- function(input, output, session) {
   output$table_data <- renderTable({
 
     tbl <- data()
+
     tbl$date <- as.character(tbl$date)
-    names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)")
+
+    if (rv$is_ndead) {
+      names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)",
+                      "Deaths (daily)")
+    } else {
+      names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)")
+    }
 
     if(input$disp == "head") {
       return(head(tbl))
@@ -437,6 +453,19 @@ server <- function(input, output, session) {
       geom_col(fill = "#428bca") +
       theme_minimal() +
       labs(x = "Date", y = "N ICU")
+
+  })
+
+  output$plot_ndead <- renderPlot({
+
+    if (rv$is_ndead) {
+      data() %>%
+        mutate(ndead = cumsum(ndead)) %>%
+        ggplot(aes(x = date, y = ndead)) +
+        geom_col(fill = "#428bca") +
+        theme_minimal() +
+        labs(x = "Date", y = "Cumulative deaths")
+    }
 
   })
 
@@ -578,7 +607,7 @@ server <- function(input, output, session) {
     validate(need(pars(), ""))
     p <- paste0("m", input$spar)
     i <- 1
-    if (rv$is_data_ready & p == "megp") {
+    if (rv$is_data & p == "megp") {
       b <- pars()$date <= max(data()$date)
       if (any(b)) i <- max(which(b))
     }
@@ -635,13 +664,13 @@ server <- function(input, output, session) {
                                         "mlag", "vlag", "mlos", "vlos")]))
 
     i <- 1
-    if (rv$is_data_ready) {
+    if (rv$is_data) {
       b <- pars()$date <= max(data_p()$date)
       if (any(b)) i <- max(which(b))
     }
     miss_param_1 <- any(is.na(pars()[i:nrow(pars()), c("megp", "vegp")]))
 
-    if (!rv$is_data_ready) {
+    if (!rv$is_data) {
 
       showModal(modalDialog(
         title = "Data not ready",
@@ -677,6 +706,14 @@ server <- function(input, output, session) {
     remove_modal_spinner()
 
   })
+
+  # Check if pred.covid outputs a `ndead` column
+  rv$is_fc_ndead <- FALSE
+  observe({
+    req(rv$pred)
+    rv$is_fc_ndead <- !is.null(rv$pred$ndead_cumul)
+  })
+
 
   ###### DEBUG #######
 
@@ -716,14 +753,18 @@ server <- function(input, output, session) {
 
   output$pindead_ui <- renderUI({
 
-    req(rv$pred)
+    if (rv$is_fc_ndead) {
 
-    numericInput(inputId = "pindead",
-                 label = "PI length for cumulative counts of deaths",
-                 value = 0.9,
-                 min = 0,
-                 max = 1,
-                 step = 0.05)
+      req(rv$pred)
+
+      numericInput(inputId = "pindead",
+                   label = "PI length for cumulative counts of deaths",
+                   value = 0.9,
+                   min = 0,
+                   max = 1,
+                   step = 0.05)
+
+    }
 
   })
 
@@ -747,10 +788,18 @@ server <- function(input, output, session) {
 
   output$plot_fc_ndead <- renderPlot({
 
-    validate(need(rv$pred, ""), need(input$pindead, ""))
-    p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinbed) / 2
-    pred <- rv$pred
-    plot.covid(pred, what = "ndead_cumul", prob = p)
+    if (rv$is_fc_ndead) {
+
+      validate(need(rv$pred, ""), need(input$pindead, ""))
+      p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pinbed) / 2
+      pred <- rv$pred
+      plot.covid(pred, what = "ndead_cumul", prob = p)
+
+    } else {
+
+      return(NULL)
+
+    }
 
   })
 
@@ -761,18 +810,31 @@ server <- function(input, output, session) {
     colnames(nhos) <- c("nhos", colnames(nhos)[2:3])
     nhos <- cbind(date = as.Date(rownames(nhos), format = "%d.%m.%Y"),
                   as.data.frame(nhos, check.names = FALSE))
+
     p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pinbed) / 2
     nbed <- round(t(apply(rv$pred$nbed, 2, quantile, prob = p)))
     colnames(nbed) <- c("nbed", colnames(nbed)[2:3])
     nbed <- cbind(date = as.Date(rownames(nbed), format = "%d.%m.%Y"),
                   as.data.frame(nbed, check.names = FALSE))
-    p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pindead) / 2
-    ndead <- round(t(apply(rv$pred$ndead_cumul, 2, quantile, prob = p)))
-    colnames(ndead) <- c("ndead", colnames(ndead)[2:3])
-    ndead <- cbind(date = as.Date(rownames(ndead), format = "%d.%m.%Y"),
-                  as.data.frame(ndead, check.names = FALSE))
-    list(nhos = nhos, nbed = nbed, ndead = ndead,
-         pars = pars(), data = data_p())
+
+    if (rv$is_fc_ndead) {
+
+      p <- c(0.5, 0, 1) + c(0, 1, -1) * (1 - input$pindead) / 2
+      ndead <- round(t(apply(rv$pred$ndead_cumul, 2, quantile, prob = p)))
+      colnames(ndead) <- c("ndead", colnames(ndead)[2:3])
+      ndead <- cbind(date = as.Date(rownames(ndead), format = "%d.%m.%Y"),
+                    as.data.frame(ndead, check.names = FALSE))
+
+      r <- list(nhos = nhos, nbed = nbed, ndead = ndead,
+                pars = pars(), data = data_p())
+
+    } else {
+
+      r <- list(nhos = nhos, nbed = nbed, pars = pars(), data = data_p())
+
+    }
+
+    return(r)
 
   })
 
