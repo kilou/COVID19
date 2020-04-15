@@ -192,7 +192,7 @@ import.ipd <- function(
 # Import data. Input file can be either a file with date, nhos and nicu columns or a file with individual patient data
 import.covid <- function(
   input.file="data.xlsx", # xlsx input data file
-  start.date=NA,          # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+  start.date=NA,          # return counts only from this date onwards
   end.date=NA,            # return counts only up to this date
   date.format="%Y-%m-%d"  # date format in data file as well as in start.date and end.date
 ){
@@ -202,17 +202,29 @@ import.covid <- function(
   nsheets <- length(sheets)
   for(k in 1:nsheets){
     raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=k))
-    if(colnames(raw)[1]=="no_unique"){type <- "ipd"; sheet <- k; break}
-    if(sum(colnames(raw)=="nhos")>0){type <- "counts"; sheet <- k; break}
+    if(colnames(raw)[1]=="no_unique"){type <- "ipd"; sheet <- k; break} # ipd=individual patient data file
+    if(sum(colnames(raw)=="nhos")>0){type <- "agg"; sheet <- k; break}  # agg=aggregated data file
   }
+
+  # Filter dates
+  date <- if(type=="ipd"){conv(raw[,"arrivee_hopital"],date.format)}else{conv(raw$date,date.format)}
+  start.date <- if(!is.na(start.date)){conv(start.date,format=date.format)}else{min(date)}
+  end.date <- if(!is.na(end.date)){conv(end.date,format=date.format)}else{max(date)}
+  sel <- which(date>=start.date & date<=end.date)
+  raw <- raw[sel,]
   
+  # Individual patient data
   if(type=="ipd"){
-    # Individual patient data
+    # Define variables
+    id <- as.character(raw[,"no_unique"])
+    age <- as.numeric(raw[,"age"])
+    sex <- factor(raw[,"sex"],levels=c("M","F"))
     hos_in <- conv(raw[,"arrivee_hopital"],date.format)
     icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
     icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
     hos_out <- conv(raw[,"sortie_hopital"],date.format)
     dead <- raw[,"deces"]
+    ipd <- data.frame(id=id,age=age,sex=sex,hos_in=hos_in,icu_in=icu_in,icu_out=icu_out,hos_out=hos_out,dead=dead)
     
     # Calculate daily cumulative count of hospitalized patients, daily nb of patients in ICU and daily nb of deaths
     days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
@@ -224,22 +236,21 @@ import.covid <- function(
       ndead[j] <- sum(dead==1 & hos_out==days[j],na.rm=T)
     }
     data <- data.frame(date=days,nhos=nhos,nicu=nicu,ndead=ndead)
-  } else {
-    # Data with nhos, nicu and possibly ndead
+  }
+  
+  # Aggregated data
+  if(type=="agg"){
+    # Filter dates
+    ipd <- NULL
     data <- raw
     data$date <- conv(data$date, date.format)
-  }
-  if (!is.na(start.date)) {
-    start.date <- conv(start.date, format = date.format)
-    data <- subset(data,date>=start.date)
-  }
-  if (!is.na(end.date)) {
-    end.date <- conv(end.date, format = date.format)
-    data <- subset(data,date<=end.date)
   }
   data$nhos <- as.integer(data$nhos)
   data$nicu <- as.integer(data$nicu)
   if(!is.null(data$ndead)){data$ndead <- as.integer(data$ndead)}
+  
+  # Add attribute with individual patient data when available
+  attr(data,"ipd") <- ipd
   data
 }
 

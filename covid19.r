@@ -7,10 +7,10 @@ source("functions.r")
 
 # Load data and parameters
 data <- import.covid(
-  input.file="data/20.04.09 - Données REDCap hôpitaux anonymisés.xlsx",
+  input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
   #input.file="data/data_09042020.xlsx",
   start.date="02/25/2020",
-  end.date="04/08/2020",
+  end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
 pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
@@ -77,7 +77,7 @@ plot.covid(pred,what="ndead_cumul",prob=p)
 # ------------------------------------------------------------------------------------------------------
 # ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
 ipd <- import.ipd(
-  input.file="data/20.04.09 - Données REDCap hôpitaux anonymisés.xlsx",
+  input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
   input.sheet=1,
   date.format="%m/%d/%Y"
 )
