@@ -412,8 +412,9 @@ server <- function(input, output, session) {
     tbl$date <- as.character(tbl$date)
 
     if (rv$is_ndead) {
+      tbl <- mutate(tbl, ndead = cumsum(ndead))
       names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)",
-                      "Deaths (daily)")
+                      "Deaths (cumul.)")
     } else {
       names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)")
     }
