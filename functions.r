@@ -308,6 +308,7 @@ pred.covid <- function(
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun.nbed <- function(s){
+    set.seed(seed+s*10)
     npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
     
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
@@ -346,6 +347,7 @@ pred.covid <- function(
   
   # Calculate nb of daily deaths (function to be parallelized)
   fun.ndead <- function(s){
+    set.seed(seed+s*10)
     npat <- ninc[s,] # nb of new patients hospitalized each day
     
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day
