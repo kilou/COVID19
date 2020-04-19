@@ -1,11 +1,12 @@
 set.seed(13042020)
 setwd("~/Documents/Work/COVID19")
+source("functions.r")
 library(readxl)
 library(writexl)
 library(survival)
 
 # Load data
-raw <- as.data.frame(read_xlsx("data/20.04.09 - Données REDCap hôpitaux anonymisés.xlsx",sheet=1))
+raw <- as.data.frame(read_xlsx("data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",sheet=1))
 age <- raw[,"age"]
 sex <- factor(raw[,"sex"],levels=c("M","F"))
 hos_in <- as.Date(raw[,"arrivee_hopital"],"%Y/%m/%d")
@@ -15,14 +16,70 @@ hos_out <- as.Date(raw[,"sortie_hopital"],"%Y/%m/%d")
 dead <- raw[,"deces"]
 exit <- (!is.na(hos_out))*1
 
+pos0 <- which(is.na(icu_in) & !is.na(hos_out)) # did not require IC
+pos1 <- which(!is.na(icu_in)) # did require IC
+pos2 <- which(is.na(icu_in) & is.na(hos_out)) # still in hospital without IC
+
+ic <- rep(NA,nrow(raw))
+ic[pos0] <- 0
+ic[pos1] <- 1
+
+ic.tmp <- ic
+pic <- rep(0,length(pos2))
+beta <- matrix(nrow=100,ncol=3)
+pic00 <- numeric(100)
+for(s in 1:100){
+  cf <- matrix(nrow=20,ncol=3)
+  pic0 <- numeric(20)
+  for(k in 1:20){
+    ic.tmp[pos2] <- sapply(pic,rbinom,n=1,size=1)
+    pic0[k] <- mean(ic.tmp)
+    
+    fm <- glm(ic.tmp~I(age-70)+sex,family="binomial")
+    cf[k,] <- coef(fm)
+  }
+  beta[s,] <- apply(cf,2,mean)
+  pic00[s] <- mean(pic0)
+  pic <- expit(as.numeric(cbind(1,age[pos2]-70,(sex[pos2]=="F")*1)%*%beta[s,]))
+}  
+plot(beta[,3])
+plot(pic00)
+
+
+
+
+
 # Age categories
-hist(age)
+hist(age,freq=F,breaks=30)
 quantile(age,c(0.25,0.5,0.75))
 age.cat <- cut(age,breaks=c(min(age),70,85,max(age)),include.lowest=TRUE)
 page <- table(age.cat)/nrow(raw) # proportion of patients in each age category
 table(dead,age.cat)
 table(exit,age.cat)
 col.cat <- c("green","orange","red")
+
+age <- age[age>0]
+fm <- fit.bccg(age)
+
+age.sim <- z2x(rnorm(1e06),fm$mu,fm$sigma,fm$lambda)
+d <- density(age.sim,na.rm=T)
+lines(d$x,d$y,col="red")
+
+p70 <- pnorm(x2z(70,fm$mu,fm$sigma,fm$lambda))
+p85 <- pnorm(x2z(85,fm$mu,fm$sigma,fm$lambda))
+
+N <- 1e06
+new.page <- c(0.75,0.20,0.05)
+
+p1 <- runif(N*new.page[1],0,p70)
+p2 <- runif(N*new.page[2],p70,p85)
+p3 <- runif(N*new.page[3],p85,1)
+
+p <- c(p1,p2,p3)
+z <- qnorm(p)
+age.sim2 <- z2x(z,fm$mu,fm$sigma,fm$lambda)
+
+plot(density(age.sim2))
 
 # Calculate total LOS
 los <- as.numeric(hos_out-hos_in)
@@ -141,6 +198,58 @@ survreg.FP <- function(time,event,x,covar=NULL,data=NULL,dist="weibull"){
   list(model=fm,power=power,p.value=pval)
 }
 
+
+survreg.FP <- function(time,event,x,covar=NULL,data=NULL,dist="weibull"){
+  if(class(time)=="formula"){time <- model.matrix(time,data)[,-1]}
+  if(class(event)=="formula"){event <- model.matrix(event,data)[,-1]}
+  if(class(x)=="formula"){x <- model.matrix(x,data)[,-1]}
+  if(class(covar)=="formula"){covar <- model.matrix(covar,data)[,-1]}
+  
+  require(survival)
+  pgrid <- c(-2,-1,-0.5,0,0.5,1,2,3)
+  S <- Surv(time,event)
+  
+  # Linear fit
+  form0 <- "S~FP(x,1)"
+  if(!is.null(covar)){form0 <- paste0(form0,"+covar")}
+  fm0 <- survreg(as.formula(form0),dist=dist)
+  LL0 <- fm0$loglik[2]
+  K0 <- length(fm0$coef)+1
+  aic0 <- -2*LL0+2*K0
+  
+  # 1st degree FP
+  fm1.grid <- rep(list(NULL),length(pgrid))
+  for(k in 1:length(pgrid)){
+    form1 <- "S~FP(x,pgrid[k])"
+    if(!is.null(covar)){form1 <- paste0(form1,"+covar")}
+    fm1.grid[[k]] <- survreg(as.formula(form1),dist=dist)
+  }
+  LL1.grid <- sapply(fm1.grid,function(model){model$loglik[2]})
+  best1 <- rev(order(LL1.grid))[1]
+  fm1 <- fm1.grid[[best1]]
+  LL1 <- LL1.grid[best1]
+  K1 <- length(fm1$coef)+2
+  aic1 <- -2*LL1+2*K1
+  
+  # 2nd degree FP
+  pgrid2 <- expand.grid(pgrid,pgrid)
+  pgrid2 <- pgrid2[which(pgrid2[,2]>=pgrid2[,1]),]
+  fm2.grid <- rep(list(NULL),nrow(pgrid2))
+  for(k in 1:nrow(pgrid2)){
+    form2 <- "S~FP(x,pgrid2[k,])"
+    if(!is.null(covar)){form2 <- paste0(form2,"+covar")}
+    fm2.grid[[k]] <- survreg(as.formula(form2),dist=dist)
+  }
+  LL2.grid <- sapply(fm2.grid,function(model){model$loglik[2]})
+  best2 <- rev(order(LL2.grid))[1]
+  fm2 <- fm2.grid[[best2]]
+  LL2 <- LL2.grid[best2]
+  K2 <- length(fm2$coef)+3
+  aic2 <- -2*LL2+2*K2
+  
+  # list(model=fm,power=power,p.value=pval)
+}
+
 dat <- data.frame(
   age=age,
   age.cat=age.cat,
@@ -150,8 +259,8 @@ dat <- data.frame(
   dead=dead
 )
 
-fit.death <- survreg.FP(time=~los,event=~dead,x=~age,covar=~sex,data=dat,dist="weibull")
-fit.exit <- survreg.FP(time=~los,event=~exit,x=~age,covar=~sex,data=dat,dist="weibull")
+# fit.death <- survreg.FP(time=~los,event=~dead,x=~age,covar=~sex,data=dat,dist="weibull")
+# fit.exit <- survreg.FP(time=~los,event=~exit,x=~age,covar=~sex,data=dat,dist="weibull")
 
 
 # -----------------------------------------------------------------------------

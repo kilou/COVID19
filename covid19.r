@@ -8,11 +8,13 @@ source("functions.r")
 # Load data and parameters
 data <- import.covid(
   input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
-  #input.file="data/data_09042020.xlsx",
+  #input.file="data/data_14042020.xlsx",
   start.date="02/25/2020",
   end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
+writexl::write_xlsx(data,path="data/data_14042020.xlsx")
+
 pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
 pars$date <- conv(pars$date)
 today <- data$date[nrow(data)]
@@ -60,7 +62,7 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=60,nsim=2000,pars,pars_surv,data,ncpu=4)
+pred <- pred.covid(nday=60,nsim=10000,pars,pars_surv,data,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)
@@ -76,18 +78,22 @@ plot.covid(pred,what="ndead_cumul",prob=p)
 
 # ------------------------------------------------------------------------------------------------------
 # ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
-ipd <- import.ipd(
+data <- import.covid(
   input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
-  input.sheet=1,
+  start.date="02/25/2020",
+  end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
+ipd <- attr(data,"ipd")
 today <- max(ipd$hos_in,na.rm=T)
 
-# Negative binomial distribution for lag
-fit.nb(ipd$icu_lag)
+lag <- as.numeric(ipd$icu_in-ipd$hos_in)
 
-# Negative binomial distribution for LOS
-los <- ipd$icu_los
+# Negative binomial distribution for lag
+fit.nb(lag)
+
+# Negative binomial distribution for ICU LOS
+los <- as.numeric(ipd$icu_out-ipd$icu_in)
 cens <- (!is.na(ipd$icu_in) & is.na(ipd$icu_out))*1
 los[cens==1] <- today-ipd$icu_in[cens==1]
 fit.nb(los,cens)
