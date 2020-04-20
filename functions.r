@@ -291,6 +291,7 @@ pred.covid <- function(
   pars,      # dataframe with parameters
   pars_surv, # dataframe with parameters for survival models (no user interaction!)
   data,      # dataframe with VD data
+  type=NULL, # type of predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start
   ncpu,      # nb of parallel processes (use 1 for serial compiutations)
   seed=1234  # seed for reproducible computations
 ){
@@ -305,6 +306,24 @@ pred.covid <- function(
   days <- c(data$date,today+c(1:nday)) # vector of days for observed data and predictions
   j <- which(days==today)              # index of today
   ipd <- attr(data,"ipd")
+  
+  # Define prediction type
+  if(is.null(type)){
+    # Automatic detection based on data
+    if(!is.null(ipd)){
+      type <- 1 # use IPD
+    } else {
+      if(!is.null(data$ndead)){
+        type <- 2 # 
+      } else {
+        type <- 3
+      }
+    }
+  } else {
+    # Check type coherence
+    if(type==1 & is.null(ipd)){stop("Predictions of type 1 cannot be used when 'data' do not contain individual patient data")}
+    if(type==2 & is.null(data$ndead)){stop("Prediction of type 2 cannot be used in absence of mortality data")}
+  }
   
   # Get parameters for each day in "days"
   ind <- sapply(days,function(d){max(which(pars$date<=d))})
@@ -347,6 +366,7 @@ pred.covid <- function(
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun.nbed <- function(s){
+    set.seed(seed+10*s)
     npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
     
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
@@ -385,9 +405,10 @@ pred.covid <- function(
   
   # Calculate nb of daily deaths (function to be parallelized)
   fun.ndead <- function(s){
+    set.seed(seed+10*s)
     npat <- ninc[s,] # nb of new patients hospitalized each day
     
-    if(!is.null(ipd)){
+    if(type==1){
       # Use individual patient data to reconstruct history
       future <- j+c(1:nday)
       Nfuture <- sum(npat[future])
@@ -440,7 +461,7 @@ pred.covid <- function(
     for(k in 1:(j+nday)){ndead[k] <- sum(dead[which(hos.out==days[k])])}
     
     # In absence of IPD, replace historic simulated death counts with observed death counts when available (crude fix)
-    if(is.null(ipd) & !is.null(data$ndead)){ndead[1:j] <- data$ndead}
+    if(type==2){ndead[1:j] <- data$ndead}
     ndead
   }
   
@@ -602,4 +623,66 @@ fit.bccg <- function(
   sigma <- exp(opt$par[2])
   lambda <- opt$par[3]
   list(mu=mu,sigma=sigma,lambda=lambda,loglik=opt$value)
+}
+
+
+# -----------------------------------------------------------------------------
+# Design matrix for fractional polynomials
+# see  https://www.jstor.org/stable/2986270
+# scaling defined as in https://rdrr.io/cran/mfp/src/R/fp.scale.R
+FP <- function(x,p,shift=NULL,scale=NULL){
+  if(is.null(shift)){
+    xmin <- min(x,na.rm=TRUE)
+    if(xmin<=0){
+      z <- diff(sort(x))
+      shift <- min(z[z > 0]) - xmin
+      shift <- ceiling(shift*10)/10
+    } else {
+      shift <- 0
+    }
+  }
+  x <- x+shift
+  if(is.null(scale)){
+    range <- max(x,na.rm=T) - min(x,na.rm=T)
+    scale <- 10^(sign(log10(range)) * round(abs(log10(range))))
+  }
+  x <- x/scale
+  p <- as.numeric(p)
+  m <- length(p)
+  pp <- c(0,p)
+  X <- matrix(nrow=length(x), ncol=m)
+  for(i in 1:m){X[,i] <- if(p[i]==0){log(x)}else{x^p[i]}}
+  H <- matrix(nrow=length(x), ncol=m+1)
+  H[,1] <- 1
+  for(i in 2:(m+1)){H[,i] <- if(pp[i]==pp[i-1]){H[,i-1]*log(x)}else{X[,i-1]}}
+  H <- H[,-1,drop=FALSE] # remove intercept
+  attr(H,"shift") <- shift
+  attr(H,"scale") <- scale
+  attr(H,"p") <- p
+  H
+}
+
+best.FP <- function(model,xform,degree=2){
+  form <- as.character(formula(model))
+  xvar <- as.character(xform)[2]
+  
+  pgrid <- as.matrix(c(-2,-1,-0.5,0,0.5,1,2,3))
+  if(degree==2){
+    pgrid <- expand.grid(pgrid,pgrid)
+    pgrid <- pgrid[which(pgrid[,2]>=pgrid[,1]),]
+  }
+
+  fm.grid <- rep(list(NULL),nrow(pgrid))
+  for(k in 1:nrow(pgrid)){
+    formk <- paste0(form[2],"~",gsub(xvar,paste0("FP(",xvar,",c(",paste0(pgrid[k,],collapse=","),"))"),form[3],fixed=TRUE))
+    fm.grid[[k]] <- update(model,formula=as.formula(formk))
+  }
+  LL.grid <- sapply(fm.grid,logLik)
+  best <- rev(order(LL.grid))[1]
+  model <- fm.grid[[best]]
+  power <- as.numeric(pgrid[best,])
+  LL <- LL.grid[best]
+  npar <- length(coef(model))+degree
+  aic <- -2*LL+2*npar
+  list(model=model,power=power,loglik=LL,aic=aic)
 }

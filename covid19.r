@@ -13,7 +13,7 @@ data <- import.covid(
   end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
-writexl::write_xlsx(data,path="data/data_14042020.xlsx")
+#writexl::write_xlsx(data,path="data/data_14042020.xlsx")
 
 pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
 pars$date <- conv(pars$date)
@@ -62,7 +62,7 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=60,nsim=10000,pars,pars_surv,data,ncpu=4)
+pred <- pred.covid(nday=30,nsim=2000,pars,pars_surv,data,type=NULL,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)

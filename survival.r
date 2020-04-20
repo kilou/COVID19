@@ -24,29 +24,84 @@ ic <- rep(NA,nrow(raw))
 ic[pos0] <- 0
 ic[pos1] <- 1
 
-ic.tmp <- ic
-pic <- rep(0,length(pos2))
-beta <- matrix(nrow=100,ncol=3)
-pic00 <- numeric(100)
-for(s in 1:100){
-  cf <- matrix(nrow=20,ncol=3)
-  pic0 <- numeric(20)
-  for(k in 1:20){
-    ic.tmp[pos2] <- sapply(pic,rbinom,n=1,size=1)
-    pic0[k] <- mean(ic.tmp)
+fm <- glm(ic~age+sex,family="binomial")
+
+
+
+best.FP(fm,xform=~age,degree=1)
+best.FP(fm,xform=~age,degree=2)
+
+
+
+
+
+
+
+niter <- 100         # nb iterations
+M <- 20              # nb imputed datasets
+npar <- 4            # nb parameters
+nimp <- length(pos2) # nb of imputed data
+
+
+
+beta.trace <- matrix(nrow=niter,ncol=npar)
+icp.trace <- icp.trace_M <- icp.trace_F <- numeric(niter)
+
+pic.imp <- rep(0,nimp) # individual probability to require IC
+for(i in 1:niter){
+  beta_m <- matrix(nrow=M,ncol=npar)
+  icp_m <- icpM_m <- icpF_m <- numeric(M)
+  for(m in 1:M){
+    ic[pos2] <- sapply(pic.imp,rbinom,n=1,size=1)
+    fm_m <- glm(ic~FP(age,c(3,3))+sex,family="binomial")
+    beta_m[m,] <- coef(fm_m)
+    icp_m[m] <- mean(ic)
     
-    fm <- glm(ic.tmp~I(age-70)+sex,family="binomial")
-    cf[k,] <- coef(fm)
+    icpM_m[m] <- mean(ic[sex=="M"])
+    icpF_m[m] <- mean(ic[sex=="F"])
   }
-  beta[s,] <- apply(cf,2,mean)
-  pic00[s] <- mean(pic0)
-  pic <- expit(as.numeric(cbind(1,age[pos2]-70,(sex[pos2]=="F")*1)%*%beta[s,]))
+  beta.trace[i,] <- apply(beta_m,2,mean)
+  icp.trace[i] <- mean(icp_m)
+  icp.trace_M[i] <- mean(icpM_m)
+  icp.trace_F[i] <- mean(icpF_m)
+  
+  pic.imp <- expit(as.numeric(model.matrix(~FP(age,c(3,3))+sex)%*%beta.trace[i,]))[pos2]
 }  
-plot(beta[,3])
-plot(pic00)
 
 
+par(mfrow=c(2,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+for(k in 1:4){
+  plot(beta.trace[,k],type="l")
+}
 
+par(mfrow=c(1,1),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+plot(c(1,niter),range(0,icp.trace,icp.trace_M,icp.trace_F),type="n",xlab="Iteration",ylab="Proportion of patients requiring IC")
+lines(1:niter,icp.trace,col="black",lwd=2)
+lines(1:niter,icp.trace_M,col="blue",lwd=2)
+lines(1:niter,icp.trace_F,col="red",lwd=2)
+abline(h=mean(icp.trace[(niter-10+1):niter]),lty=2)
+abline(h=mean(icp.trace_M[(niter-10+1):niter]),lty=2,col="blue")
+abline(h=mean(icp.trace_F[(niter-10+1):niter]),lty=2,col="red")
+legend("bottomright",c("All","Males","Females"),col=c("black","blue","red"),lwd=2,bty="n")
+
+
+beta <- apply(beta.trace[(niter-10+1):niter,],2,mean)
+agepred <- c(0:101)
+
+picM <- expit(as.numeric(cbind(1,FP(agepred,c(3,3)),0)%*%beta))
+picF <- expit(as.numeric(cbind(1,FP(agepred,c(3,3)),1)%*%beta))
+plot(range(agepred),range(picM,picF),type="n",xlab="Age",ylab="Proportion of patients requiring IC")
+lines(agepred,picM,col="blue",lwd=2)
+lines(agepred,picF,col="red",lwd=2)
+legend("topleft",c("Males","Females"),col=c("blue","red"),lwd=2,bty="n")
+
+
+lag <- as.numeric(icu_in-hos_in)
+lag[lag==0] <- 0.01
+
+fm1 <- lm(log(lag)~age+sex)
+summary(fm1)
+summary(best.FP(fm1,xform=~age,degree=1)$model)
 
 
 # Age categories
