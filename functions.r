@@ -260,6 +260,10 @@ import.covid <- function(
 
   # Filter dates
   date <- if(dat.type=="ipd"){conv(raw[,"arrivee_hopital"],date.format)}else{conv(raw$date,date.format)}
+  if (any(is.na(date))) {
+    warning("Missing dates or wrong date format")
+    return(data.frame(date=numeric(0),nhos=numeric(0),nicu=numeric(0)))
+  }
   start.date <- if(!is.na(start.date)){conv(start.date,format=date.format)}else{min(date,na.rm=T)}
   end.date <- if(!is.na(end.date)){conv(end.date,format=date.format)}else{max(date,na.rm=T)}
   sel <- which(date>=start.date & date<=end.date)

@@ -93,10 +93,11 @@ ui <- shinyUI(fluidPage(
                         selected = "%Y-%m-%d"),
 
             # Input: Select number of rows to display ----
-            radioButtons(inputId = "disp",
-                         label = "Display",
-                         choices = c(Head = "head", All = "all"),
-                         selected = "all")
+            radioButtons(inputId = "date_order",
+                         label = "Date order",
+                         choices = c(Ascending = "ascending",
+                                     Descending = "descending"),
+                         selected = "ascending")
 
           ),
 
@@ -207,10 +208,19 @@ ui <- shinyUI(fluidPage(
 
             ),
 
-
             column(3,
 
               uiOutput("sim_type_ui")
+
+            ),
+
+            column(3,
+
+              strong("Compute forecasts"),
+
+              br(),
+
+              actionButton("submit", "Submit")
 
             )
 
@@ -220,11 +230,19 @@ ui <- shinyUI(fluidPage(
 
             column(3,
 
-              strong("Compute forecasts"),
+              uiOutput("disp_from_ui")
 
-              br(),
+            ),
 
-              actionButton("submit", "Submit")
+            column(3,
+
+              uiOutput("disp_to_ui")
+
+            ),
+
+            column(3,
+
+              uiOutput("pinlen_ui")
 
             ),
 
@@ -235,12 +253,6 @@ ui <- shinyUI(fluidPage(
               br(),
 
               uiOutput("dl_forcasts_ui")
-
-            ),
-
-            column(3,
-
-              uiOutput("pinlen_ui")
 
             )
 
@@ -393,25 +405,31 @@ server <- function(input, output, session) {
 
     req(input$start_date)
 
-    tbl <- data() %>%
+    tbl <- data()
+
+    if (rv$is_ndead) {
+      tbl <- mutate(tbl, ndead = cumsum(ndead))
+    }
+
+    tbl <- tbl %>%
       filter(date >= input$start_date)
+
+    if (input$date_order == "ascending") {
+      tbl <- arrange(tbl, date)
+    } else {
+      tbl <- arrange(tbl, desc(date))
+    }
 
     tbl$date <- as.character(tbl$date)
 
     if (rv$is_ndead) {
-      tbl <- mutate(tbl, ndead = cumsum(ndead))
       names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)",
                       "Deaths (cumul.)")
     } else {
       names(tbl) <- c("Date", "Hospital (cumul.)", "ICU (current)")
     }
 
-    if(input$disp == "head") {
-      return(head(tbl))
-    }
-    else {
-      return(tbl)
-    }
+    return(tbl)
 
   })
 
@@ -670,9 +688,9 @@ server <- function(input, output, session) {
 
     req(data_p())
 
-    choices = list(`Use individual data`            = 1,
-                   `Use deaths data`                = 2,
-                   `Use hospitalizations data only` = 3)
+    choices = list(`Type 1: Use individual data`            = 1,
+                   `Type 2: Use deaths data`                = 2,
+                   `Type 3: Use hospitalizations data only` = 3)
 
     types <- attr(data_p(), "type")
 
@@ -771,12 +789,51 @@ server <- function(input, output, session) {
 
   })
 
+  output$disp_from_ui <- renderUI({
+
+    req(rv$pred)
+
+    dmin <- min(conv(colnames(rv$pred$nhos), format = "%d.%m.%Y"))
+    dmin <- max(dmin, as.Date("2020-02-25"))
+    dmax <- max(conv(colnames(rv$pred$nhos), format = "%d.%m.%Y"))
+
+    dateInput(inputId = "disp_from",
+              label = "Display from...",
+              value = dmin,
+              min = dmin,
+              max = dmax,
+              format = "yyyy-mm-dd")
+
+  })
+
+  output$disp_to_ui <- renderUI({
+
+    req(rv$pred)
+
+    dmin <- input$disp_from
+    dmax <- max(conv(colnames(rv$pred$nhos), format = "%d.%m.%Y"))
+
+    dateInput(inputId = "disp_to",
+              label = "Display to...",
+              value = dmax,
+              min = dmin,
+              max = dmax,
+              format = "yyyy-mm-dd")
+
+  })
+
   output$plot_fc_nhos <- renderPlot({
 
     validate(need(rv$pred, ""), need(input$pilen, ""))
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pilen) / 2
     pred <- rv$pred
-    plot.covid(pred, what = "nhos", prob = p)
+    plot.covid(
+      pred,
+      what = "nhos",
+      prob = p,
+      from = input$disp_from,
+      to = input$disp_to
+    )
 
   })
 
@@ -785,7 +842,13 @@ server <- function(input, output, session) {
     validate(need(rv$pred, ""), need(input$pilen, ""))
     p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pilen) / 2
     pred <- rv$pred
-    plot.covid(pred, what = "nbed", prob = p)
+    plot.covid(
+      pred,
+      what = "nbed",
+      prob = p,
+      from = input$disp_from,
+      to = input$disp_to
+    )
 
   })
 
@@ -796,7 +859,13 @@ server <- function(input, output, session) {
       validate(need(rv$pred, ""), need(input$pilen, ""))
       p <- c(0, 0.5, 1) + c(1, 0, -1) * (1 - input$pilen) / 2
       pred <- rv$pred
-      plot.covid(pred, what = "ndead_cumul", prob = p)
+      plot.covid(
+        pred,
+        what = "ndead_cumul",
+        prob = p,
+        from = input$disp_from,
+        to = input$disp_to
+      )
 
     } else {
 
@@ -843,7 +912,8 @@ server <- function(input, output, session) {
   output$dl_forcasts <- downloadHandler(
 
     filename = function() {
-      paste0("forcasts_", format(Sys.time(), "%Y%m%d%H%M%S"), ".xlsx")
+      paste0("forcasts_type", input$sim_type, "_",
+             format(Sys.time(), "%Y%m%d%H%M%S"), ".xlsx")
     },
     content = function(file) {write_xlsx(fc_table(), path = file)}
 
