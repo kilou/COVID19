@@ -153,18 +153,18 @@ sim.los <- function(
 # ------------------------------------------------------------------------------------------------------
 # Plot function for object returned by pred.covid()
 plot.covid <- function(
-  object.covid,           # object returned by pred.covid()
-  what="nbed",            # name of element to plot in object.covid
-  prob=c(0.025,0.5,0.975) # quantiles to plot (length=3!)
+  object.covid,            # object returned by pred.covid()
+  what="nbed",             # name of element to plot in object.covid
+  prob=c(0.025,0.5,0.975), # quantiles to plot (length=3!)
+  from=NULL,               # date from which plot is displayed (as string)
+  to=NULL,                 # date up to which plot is displayed (as string)
+  date.format="%m/%d/%Y"   # date format for 'from' and 'to'
 ){
   stopifnot(length(prob)==3)
   data <- object.covid$data
   X <- object.covid[[what]]
-  Q <- t(apply(X,2,quantile,probs=prob))
   days <- as.Date(strptime(colnames(X),format="%d.%m.%Y"))
   today <- data$date[nrow(data)]
-  past <- which(days<=today)
-  futur <- which(days>=today)
   
   if(what=="nbed"){
     tit <- "Number of occupied beds in ICUs"
@@ -186,7 +186,31 @@ plot.covid <- function(
     ylb <- "Number of deaths"
     y <- if(!is.null(data$ndead)){cumsum(data$ndead)}else{NULL}
   }
-
+  
+  # Apply date filtering
+  if(!is.null(from)){
+    from <- conv(from,date.format)
+    pos1 <- which(data$date>=from)
+    pos2 <- which(days>=from)
+    data <- data[pos1,,drop=F]
+    y <- y[pos1]
+    X <- X[,pos2,drop=F]
+    days <- days[pos2]
+  }
+  if(!is.null(to)){
+    to <- conv(to,date.format)
+    pos1 <- which(data$date<=to)
+    pos2 <- which(days<=to)
+    data <- data[pos1,,drop=F]
+    y <- y[pos1]
+    X <- X[,pos2,drop=F]
+    days <- days[pos2]
+  }
+  
+  Q <- t(apply(X,2,quantile,probs=prob))
+  past <- which(days<=today)
+  futur <- which(days>=today)
+  
   par(mar=c(3,5,4,3),mgp=c(1.8,0.6,0))
   plot(range(days),range(c(y,Q)),type="n",xlab="",ylab="",las=1,xaxt="n")
   xdat <- conv(paste0("01.",unique(format(days,"%m.%Y"))),"%d.%m.%Y")
@@ -222,7 +246,7 @@ import.covid <- function(
   input.file="data.xlsx", # xlsx input data file
   start.date=NA,          # return counts only from this date onwards
   end.date=NA,            # return counts only up to this date
-  date.format="%Y-%m-%d"  # date format in data file as well as in start.date and end.date
+  date.format="%m/%d/%Y"  # date format in data file as well as in start.date and end.date
 ){
 
   # Detect file type (individual patient data or counts)
@@ -239,6 +263,7 @@ import.covid <- function(
   start.date <- if(!is.na(start.date)){conv(start.date,format=date.format)}else{min(date,na.rm=T)}
   end.date <- if(!is.na(end.date)){conv(end.date,format=date.format)}else{max(date,na.rm=T)}
   sel <- which(date>=start.date & date<=end.date)
+  ndel <- if(dat.type=="agg" & sel[1]>1){raw[sel[1]-1,"nhos"]}else{0} # cumulative nb of hospitalizations just before start.date (these will be removed)
   raw <- raw[sel,]
   
   # Individual patient data
@@ -256,7 +281,7 @@ import.covid <- function(
     ipd <- data.frame(id=id,age=age,sex=sex,hos_in=hos_in,icu_in=icu_in,icu_out=icu_out,hos_out=hos_out,dead=dead)
     
     # Calculate daily cumulative count of hospitalized patients, daily nb of patients in ICU and daily nb of deaths
-    days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
+    days <- start.date+c(0:(end.date-start.date))
     ndays <- length(days)
     nhos <- nicu <- ndead <- numeric(ndays)
     for(j in 1:ndays){
@@ -272,6 +297,7 @@ import.covid <- function(
     # Filter dates
     ipd <- NULL
     data <- raw
+    data$nhos <- data$nhos-ndel # remove hospitalizations that occurred before start.date
     data$date <- conv(data$date, date.format)
   }
   data$nhos <- as.integer(data$nhos)
@@ -343,7 +369,7 @@ pred.covid <- function(
   # Fill-in observed cumulative count of hospitalized patients
   nhos <- matrix(nrow=nsim,ncol=j+nday)
   nhos[,1:j] <- t(data$nhos)[rep(1,nsim),]
-  
+
   # Predict future cumulative counts of hospitalized patients using exponential growth parameter
   for(k in (j+1):(j+nday)){nhos[,k] <- round(nhos[,k-1]*regp(nsim,megp[k],vegp[k]))}
   
@@ -353,7 +379,7 @@ pred.covid <- function(
   for(k in 1:(j+nday-1)){ninc[,k+1] <- nhos[,k+1]-nhos[,k]}
   if(sum(ninc<0)>0){stop("Some incident counts are negative!")}
   
-  # Calculate incident cases that will require intensive cares at some point
+  # Calculate incident cases that will require intensive cares at some point (should be placed inside fun.nbed instead!)
   nicu <- matrix(nrow=nsim,ncol=j+nday)
   for(k in 1:(j+nday)){nicu[,k] <- round(ricp(nsim,micp[k],vicp[k])*ninc[,k])}
   

@@ -65,16 +65,16 @@ histo(los,p)
 pred <- pred.covid(nday=60,nsim=2000,pars,pars_surv,data,type=NULL,ncpu=4)
 
 # Plot cumulative counts
-plot.covid(pred,what="nhos",prob=p)
+plot.covid(pred,what="nhos",prob=p,from="02/25/2020",date.format="%m/%d/%Y")
 
 # Plot nb ICU beds required
-plot.covid(pred,what="nbed",prob=p)
+plot.covid(pred,what="nbed",prob=p,from="02/25/2020",date.format="%m/%d/%Y")
 
 # Plot nb of daily deaths
-plot.covid(pred,what="ndead_daily",prob=p)
+plot.covid(pred,what="ndead_daily",prob=p,from="02/25/2020",date.format="%m/%d/%Y")
 
 # Plot cumulative nb of deaths
-plot.covid(pred,what="ndead_cumul",prob=p)
+plot.covid(pred,what="ndead_cumul",prob=p,from="02/25/2020",date.format="%m/%d/%Y")
 
 # ------------------------------------------------------------------------------------------------------
 # ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
