@@ -9,7 +9,7 @@ source("functions.r")
 data <- import.covid(
   input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
   #input.file="data/data_14042020.xlsx",
-  start.date="02/25/2020",
+  start.date=NA,
   end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
@@ -80,7 +80,7 @@ plot.covid(pred,what="ndead_cumul",prob=p,from="02/25/2020",date.format="%m/%d/%
 # ESTIMATE LAG AND LOS DISTRIBUTIONS ON INDIVIDUAL PATIENT DATA
 data <- import.covid(
   input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
-  start.date="02/25/2020",
+  start.date=NA,
   end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
