@@ -72,6 +72,26 @@ qlos<- function(
 ){qnbinom(p,mu=mlos,size=mlos^2/(vlos-mlos))}
 
 # ------------------------------------------------------------------------------------------------------
+# Draw age category
+ragecat <- function(n,prob){
+  ind <- t(rmultinom(n,size=1,prob=prob))
+  if(is.null(colnames(ind))){colnames(ind) <- c(1:length(prob))}
+  agecat <- integer(n)
+  for(k in 1:ncol(ind)){
+    pos <- which(ind[,k]==1)
+    agecat[pos] <- rep(k,length(pos))
+  }
+  agecat
+}
+
+# ------------------------------------------------------------------------------------------------------
+# Draw sex
+rsex <- function(n,pfemale=0.4){
+  sex <- rbinom(n,size=1,prob=pfemale)
+  factor(sex,levels=c(0,1),labels=c("M","F"))  
+}
+
+# ------------------------------------------------------------------------------------------------------
 # Define RGB code for shiny blue (to be used in rgb() function possibly with alpha transparency)
 rgb.blue <- t(col2rgb("#428bca"))/255
 
@@ -95,6 +115,41 @@ histo <- function(x,prob){
   }
 }
 
+pred.h <- function(
+  t,    # time (typically length of stay)
+  agecat, 
+  mu,
+  sigma
+){
+  t[t==0] <- 0.001
+  h <- numeric(length(t))
+  for(k in 1:max(agecat)){
+    pos <- which(agecat==k)
+    h[pos] <- exp((log(t[pos])-mu[k])/sigma[k])/(sigma[k]*t[pos])
+  }
+  h
+}
+
+sim.los <- function(
+  agecat, 
+  mu,
+  sigma,
+  left=NULL # left censoring
+){
+  n <- length(agecat)
+  if(is.null(left)){left <- rep(0,n)}
+  los <- integer(n)
+  for(k in 1:max(agecat)){
+    pos <- which(agecat==k)
+    pleft <- pweibull(left[pos],shape=1/sigma[k],scale=exp(mu[k]))
+    p <- sapply(pleft,runif,n=1,max=1)
+    los[pos] <- floor(qweibull(p,shape=1/sigma[k],scale=exp(mu[k])))
+  }
+  los
+}
+
+
+
 # ------------------------------------------------------------------------------------------------------
 # Plot function for object returned by pred.covid()
 plot.covid <- function(
@@ -104,7 +159,6 @@ plot.covid <- function(
 ){
   stopifnot(length(prob)==3)
   data <- object.covid$data
-  if(is.null(data$ndead) & length(grep("ndead",what,fixed=TRUE))>0){stop("Mortality data unavailable!")}
   X <- object.covid[[what]]
   Q <- t(apply(X,2,quantile,probs=prob))
   days <- as.Date(strptime(colnames(X),format="%d.%m.%Y"))
@@ -125,12 +179,12 @@ plot.covid <- function(
   if(what=="ndead_daily"){
     tit <- "Number of daily deaths"
     ylb <- "Number of deaths"
-    y <- data$ndead
+    y <- if(!is.null(data$ndead)){data$ndead}else{NULL}
   }
   if(what=="ndead_cumul"){
     tit <- "Cumulative number of deaths"
     ylb <- "Number of deaths"
-    y <- cumsum(data$ndead)
+    y <- if(!is.null(data$ndead)){cumsum(data$ndead)}else{NULL}
   }
 
   par(mar=c(3,5,4,3),mgp=c(1.8,0.6,0))
@@ -154,45 +208,19 @@ plot.covid <- function(
   abline(v=today,lty=2)
   mtext(format(today,"%d.%m.%Y"),side=3,at=today,line=0.2)
   abline(h=0)
-  legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=1)
+  if(what%in%c("ndead_daily","ndead_cumul") & is.null(data$ndead)){
+    legend("topleft",legend="Predicted counts",pch=19,col="red",bty="n",cex=1)
+  } else {
+    legend("topleft",legend=c("Observed counts","Predicted counts"),pch=c(19,19),col=c("black","red"),bty="n",cex=1)
+  }
   mtext(paste0(100*prob,"%"),side=4,at=Q[nrow(Q),],cex=0.8,las=1,col=c(rgb(rgb.blue),"red",rgb(rgb.blue)),line=0.25)
-}
-
-# ------------------------------------------------------------------------------------------------------
-# Import individual patient data
-import.ipd <- function(
-  input.file,              # xlsx input data file with individual patient data
-  input.sheet,             # sheet in input.file where data are located
-  date.format="%Y-%m-%d"
-){
-  # Read individual patient data
-  raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=input.sheet))
-  id <- raw[,"no_unique"]
-  age <- raw[,"age"]; age[age==0] <- NA
-  sex <- factor(raw[,"sex"],levels=c("M","F"))
-  hos_in <- conv(raw[,"arrivee_hopital"],date.format)
-  icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
-  icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
-  hos_out <- conv(raw[,"sortie_hopital"],date.format)
-  dead <- raw[,"deces"]
-  home <- (raw[,"issue"]=="domicile")*1
-  trsf <- (raw[,"issue"]=="transfert")*1
-  
-  # Calculate lag and ICU length of stay
-  icu_lag <- icu_in-hos_in
-  icu_los <- icu_out-icu_in
-  hos_los <- hos_out-hos_in
-  
-  # Return IPD data
-  data <- cbind.data.frame(id,age,sex,hos_in,icu_in,icu_out,hos_out,icu_lag,icu_los,hos_los,dead,home,trsf)
-  data
 }
 
 # ------------------------------------------------------------------------------------------------------
 # Import data. Input file can be either a file with date, nhos and nicu columns or a file with individual patient data
 import.covid <- function(
   input.file="data.xlsx", # xlsx input data file
-  start.date=NA,          # return counts only from this date onwards (but counts are cumulated from the start of input.file)
+  start.date=NA,          # return counts only from this date onwards
   end.date=NA,            # return counts only up to this date
   date.format="%Y-%m-%d"  # date format in data file as well as in start.date and end.date
 ){
@@ -202,17 +230,30 @@ import.covid <- function(
   nsheets <- length(sheets)
   for(k in 1:nsheets){
     raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=k))
-    if(colnames(raw)[1]=="no_unique"){type <- "ipd"; sheet <- k; break}
-    if(sum(colnames(raw)=="nhos")>0){type <- "counts"; sheet <- k; break}
+    if(colnames(raw)[1]=="no_unique"){type <- "ipd"; sheet <- k; break} # ipd=individual patient data file
+    if(sum(colnames(raw)=="nhos")>0){type <- "agg"; sheet <- k; break}  # agg=aggregated data file
   }
+
+  # Filter dates
+  date <- if(type=="ipd"){conv(raw[,"arrivee_hopital"],date.format)}else{conv(raw$date,date.format)}
+  start.date <- if(!is.na(start.date)){conv(start.date,format=date.format)}else{min(date,na.rm=T)}
+  end.date <- if(!is.na(end.date)){conv(end.date,format=date.format)}else{max(date,na.rm=T)}
+  sel <- which(date>=start.date & date<=end.date)
+  raw <- raw[sel,]
   
+  # Individual patient data
   if(type=="ipd"){
-    # Individual patient data
+    # Define variables
+    id <- as.character(raw[,"no_unique"])
+    age <- as.numeric(raw[,"age"])
+    sex <- factor(raw[,"sex"],levels=c("M","F"))
     hos_in <- conv(raw[,"arrivee_hopital"],date.format)
     icu_in <- conv(raw[,"debut_soins_intensifs"],date.format)
     icu_out <- conv(raw[,"fin_soins_intensifs"],date.format)
     hos_out <- conv(raw[,"sortie_hopital"],date.format)
     dead <- raw[,"deces"]
+    dead[which(is.na(hos_out))] <- NA
+    ipd <- data.frame(id=id,age=age,sex=sex,hos_in=hos_in,icu_in=icu_in,icu_out=icu_out,hos_out=hos_out,dead=dead)
     
     # Calculate daily cumulative count of hospitalized patients, daily nb of patients in ICU and daily nb of deaths
     days <- min(hos_in,na.rm=T)+c(0:diff(range(hos_in,na.rm=T)))
@@ -224,22 +265,21 @@ import.covid <- function(
       ndead[j] <- sum(dead==1 & hos_out==days[j],na.rm=T)
     }
     data <- data.frame(date=days,nhos=nhos,nicu=nicu,ndead=ndead)
-  } else {
-    # Data with nhos, nicu and possibly ndead
+  }
+  
+  # Aggregated data
+  if(type=="agg"){
+    # Filter dates
+    ipd <- NULL
     data <- raw
     data$date <- conv(data$date, date.format)
-  }
-  if (!is.na(start.date)) {
-    start.date <- conv(start.date, format = date.format)
-    data <- subset(data,date>=start.date)
-  }
-  if (!is.na(end.date)) {
-    end.date <- conv(end.date, format = date.format)
-    data <- subset(data,date<=end.date)
   }
   data$nhos <- as.integer(data$nhos)
   data$nicu <- as.integer(data$nicu)
   if(!is.null(data$ndead)){data$ndead <- as.integer(data$ndead)}
+  
+  # Add attribute with individual patient data when available
+  attr(data,"ipd") <- ipd
   data
 }
 
@@ -251,6 +291,7 @@ pred.covid <- function(
   pars,      # dataframe with parameters
   pars_surv, # dataframe with parameters for survival models (no user interaction!)
   data,      # dataframe with VD data
+  type=NULL, # type of predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start
   ncpu,      # nb of parallel processes (use 1 for serial compiutations)
   seed=1234  # seed for reproducible computations
 ){
@@ -264,7 +305,25 @@ pred.covid <- function(
   today <- data$date[nrow(data)]       # today i.e. last date entered in data
   days <- c(data$date,today+c(1:nday)) # vector of days for observed data and predictions
   j <- which(days==today)              # index of today
-  has.ndead <- !is.null(data$ndead)    # check if mortality data are provided (they may be missing if data is not based on individual patient data)
+  ipd <- attr(data,"ipd")
+  
+  # Define prediction type
+  if(is.null(type)){
+    # Automatic detection based on data
+    if(!is.null(ipd)){
+      type <- 1 # use IPD
+    } else {
+      if(!is.null(data$ndead)){
+        type <- 2 # 
+      } else {
+        type <- 3
+      }
+    }
+  } else {
+    # Check type coherence
+    if(type==1 & is.null(ipd)){stop("Predictions of type 1 cannot be used when 'data' do not contain individual patient data")}
+    if(type==2 & is.null(data$ndead)){stop("Prediction of type 2 cannot be used in absence of mortality data")}
+  }
   
   # Get parameters for each day in "days"
   ind <- sapply(days,function(d){max(which(pars$date<=d))})
@@ -280,14 +339,13 @@ pred.covid <- function(
   vlos <- pars$vlos[ind]
   
   # Get parameters for survival models
-  ncat <- nrow(pars_surv) # nb age categories
   amin <- pars_surv$amin  
-  amax <- pars_surv$amax
   page <- pars_surv$prob  # proportion of patients in each age category
   mu1 <- pars_surv$mu1
   sig1 <- pars_surv$sig1
   mu2 <- pars_surv$mu2
   sig2 <- pars_surv$sig2
+  pfemale <- 0.4
   
   # Fill-in observed cumulative count of hospitalized patients
   nhos <- matrix(nrow=nsim,ncol=j+nday)
@@ -308,7 +366,11 @@ pred.covid <- function(
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun.nbed <- function(s){
+<<<<<<< HEAD
     set.seed(seed+s*10)
+=======
+    set.seed(seed+10*s)
+>>>>>>> aziz_dev
     npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
     
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
@@ -347,33 +409,67 @@ pred.covid <- function(
   
   # Calculate nb of daily deaths (function to be parallelized)
   fun.ndead <- function(s){
+<<<<<<< HEAD
     set.seed(seed+s*10)
+=======
+    set.seed(seed+10*s)
+>>>>>>> aziz_dev
     npat <- ninc[s,] # nb of new patients hospitalized each day
     
-    hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day
+    if(type==1){
+      # Use individual patient data to reconstruct history
+      future <- j+c(1:nday)
+      Nfuture <- sum(npat[future])
 
-    A <- t(rmultinom(sum(npat),size=1,prob=page))
-    hos.los <- h1 <- h2 <- numeric(sum(npat))
-    for(k in 1:ncat){
-      pos <- which(A[,k]==1)
-      
-      # Generate LOS
-      hos.los[pos] <- floor(rweibull(length(pos),shape=1/sig2[k],scale=exp(mu2[k])))
-      
-      # Calculate instant hazards h1 and h2
-      t <- hos.los[pos]
-      t[t==0] <- 0.001
-      h1[pos] <- exp((log(t)-mu1[k])/sig1[k])/(sig1[k]*t)
-      h2[pos] <- exp((log(t)-mu2[k])/sig2[k])/(sig2[k]*t)
+      agecat <- c(as.numeric(cut(ipd$age,breaks=c(amin,Inf),include.lowest=TRUE)),ragecat(Nfuture,page))
+      sex <- c(ipd$sex,rsex(Nfuture,pfemale))
+      hos.in <- c(ipd$hos_in,do.call("c",mapply(rep,x=days[future],times=npat[future],SIMPLIFY=FALSE)))
+      hos.out <- c(ipd$hos_out,rep(NA,Nfuture))
+      los <- as.numeric(hos.out-hos.in)
+      dead <- c(ipd$dead,rep(NA,Nfuture))
+
+      # Simulate LOS for existing patients that are still in hospital: LOS is censored tomorrow
+      sel <- which(hos.in<=today & is.na(hos.out))
+      if(length(sel)>0){
+        los[sel] <- sim.los(agecat[sel],mu2,sig2,left=as.numeric(today-hos.in[sel])+1)
+        hos.out[sel] <- hos.in[sel]+los[sel]
+      }
+
+      # Simulate LOS for new patients
+      sel <- which(hos.in>today & is.na(hos.out))
+      if(length(sel)>0){
+        los[sel] <- sim.los(agecat[sel],mu2,sig2,left=NULL)
+        hos.out[sel] <- hos.in[sel]+los[sel]
+      }
+
+      # Calculate probability of death for patients without death status
+      sel <- which(is.na(dead))
+      if(length(sel)>0){
+        h1 <- pred.h(los[sel],agecat[sel],mu=mu1,sigma=sig1) # hazard of dying
+        h2 <- pred.h(los[sel],agecat[sel],mu=mu2,sigma=sig2) # hazard of exiting (dead or alive)
+        pdead <- h1/h2                                       # probability of dying at the end of LOS
+        dead[sel] <- sapply(pdead,rbinom,n=1,size=1)         # death indicator
+      }
+    } else {
+      # Simulate fictive deaths from start of epidemy
+      N <- sum(npat)
+      agecat <- ragecat(N,page)
+      sex <- rsex(N,pfemale)
+      hos.in <- do.call("c",mapply(rep,x=days,times=npat,SIMPLIFY=FALSE))
+      los <- sim.los(agecat,mu2,sig2)
+      hos.out <- hos.in+los
+      h1 <- pred.h(los,agecat,mu1,sig1)       # hazard of dying
+      h2 <- pred.h(los,agecat,mu2,sig2)       # hazard of exiting (dead or alive)
+      pdead <- h1/h2                          # probability of dying at the end of LOS
+      dead <- sapply(pdead,rbinom,n=1,size=1) # death indicator
     }
-    hos.out <- hos.in+hos.los
-    pdead <- h1/h2
-    dead <- sapply(pdead,rbinom,n=1,size=1)
     
     # Calculate daily nb of deaths
     ndead <- integer(j+nday)
-    for(k in 1:(j+nday)){ndead[k] <- sum(dead[which(hos.out==k)])}
-    #ndead[1:j] <- data$ndead
+    for(k in 1:(j+nday)){ndead[k] <- sum(dead[which(hos.out==days[k])])}
+    
+    # In absence of IPD, replace historic simulated death counts with observed death counts when available (crude fix)
+    if(type==2){ndead[1:j] <- data$ndead}
     ndead
   }
   
@@ -383,23 +479,18 @@ pred.covid <- function(
     sfInit(parallel=TRUE, cpus=ncpu)
     sfExportAll() 
     nbed <- t(sfSapply(1:nsim, fun.nbed))
-    if(has.ndead){ndead <- t(sfSapply(1:nsim, fun.ndead))}
+    ndead <- t(sfSapply(1:nsim, fun.ndead))
     sfStop()
   } else {
     nbed <- ndead <- matrix(nrow=nsim,ncol=j+nday)
     for(s in 1:nsim){
       cat("Progress: ",round(100*s/nsim),"%\r",sep=""); flush.console()
       nbed[s,] <- fun.nbed(s)
-      if(has.ndead){ndead[s,] <- fun.ndead(s)}
+      ndead[s,] <- fun.ndead(s)
     }
   }
-  colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- format(days,format="%d.%m.%Y")
-  if(has.ndead){
-    colnames(ndead) <- format(days,format="%d.%m.%Y")
-    ndead_cumul <- t(apply(ndead,1,cumsum))
-  } else {
-    ndead <- ndead_cumul <- NULL
-  }
+  colnames(nhos) <- colnames(ninc) <- colnames(nbed) <- colnames(ndead) <- format(days,format="%d.%m.%Y")
+  ndead_cumul <- t(apply(ndead,1,cumsum))
   
   t1 <- proc.time()
   cat("Calculations completed in",ceiling((t1-t0)[3]),"seconds","\n"); flush.console()
@@ -491,4 +582,115 @@ fit.wb <- function(
   opt <- optim(par=c(log(a0),log(b0)),fn=wb.llik,left=left,right=right,method="BFGS",control=list(fnscale=-1,maxit=1000))
 
   list(shape=exp(opt$par[1]),scale=exp(opt$par[2]),loglik=opt$value)
+}
+
+pbccg <- function(q,mu,sigma,lambda){
+  if(lambda==0){
+    zt <- log(q/mu)/sigma
+  } else {
+    zt <- ((q/mu)^lambda-1)/(lambda*sigma)
+  }
+  ptr <- pnorm(-1/(sigma*abs(lambda))) # truncation probability
+  p <- if(lambda<=0){pnorm(z)/(1-ptr)}else{(pnorm(z)-ptr)/(1-ptr)}
+  p
+}
+
+qbccg <- function(p,mu,sigma,lambda){
+  zp <- qnorm(p)
+  ptr <- pnorm(-1/(sigma*abs(lambda))) # truncation probability
+  zt <- if(lambda<=0){qnorm(p*(1-ptr))}else{qnorm(p*(1-ptr)+ptr)}
+  if(lambda==0){
+    q <- mu*exp(zt*sigma)
+  } else {
+    q <- mu*abs(1+zt*lambda*sigma)^(1/lambda)
+  }
+  q
+}
+
+fit.bccg <- function(
+  x,
+  cens=NULL
+){
+  if(is.null(cens)){cens <- rep(0,length(x))}
+  bccg.llik <- function(pars,x,cens){
+    mu <- exp(pars[1])
+    sig <- exp(pars[2])
+    lam <- pars[3]
+    z <- x2z(x,mu,sig,lam)
+    ljac <- -log(mu)-log(sig)+(lam-1)*(log(x)-log(mu))
+    ll <- x*0
+    obs <- which(cens==0)
+    cns <- which(cens==1)
+    if(length(obs)>0){ll[obs] <- dnorm(z[obs],log=TRUE)+ljac[obs]}
+    if(length(cns)>0){ll[cns] <- pnorm(z[cns],lower.tail=FALSE,log.p=TRUE)}
+    sum(ll)
+  }
+  ini <- c(log(median(x)),log(sd(log(x))),0)
+  opt <- optim(par=ini,fn=bccg.llik,x=x,cens=cens,method="BFGS",control=list(fnscale=-1,maxit=1000))
+  mu <- exp(opt$par[1])
+  sigma <- exp(opt$par[2])
+  lambda <- opt$par[3]
+  list(mu=mu,sigma=sigma,lambda=lambda,loglik=opt$value)
+}
+
+
+# -----------------------------------------------------------------------------
+# Design matrix for fractional polynomials
+# see  https://www.jstor.org/stable/2986270
+# scaling defined as in https://rdrr.io/cran/mfp/src/R/fp.scale.R
+FP <- function(x,p,shift=NULL,scale=NULL){
+  if(is.null(shift)){
+    xmin <- min(x,na.rm=TRUE)
+    if(xmin<=0){
+      z <- diff(sort(x))
+      shift <- min(z[z > 0]) - xmin
+      shift <- ceiling(shift*10)/10
+    } else {
+      shift <- 0
+    }
+  }
+  x <- x+shift
+  if(is.null(scale)){
+    range <- max(x,na.rm=T) - min(x,na.rm=T)
+    scale <- 10^(sign(log10(range)) * round(abs(log10(range))))
+  }
+  x <- x/scale
+  p <- as.numeric(p)
+  m <- length(p)
+  pp <- c(0,p)
+  X <- matrix(nrow=length(x), ncol=m)
+  for(i in 1:m){X[,i] <- if(p[i]==0){log(x)}else{x^p[i]}}
+  H <- matrix(nrow=length(x), ncol=m+1)
+  H[,1] <- 1
+  for(i in 2:(m+1)){H[,i] <- if(pp[i]==pp[i-1]){H[,i-1]*log(x)}else{X[,i-1]}}
+  H <- H[,-1,drop=FALSE] # remove intercept
+  attr(H,"shift") <- shift
+  attr(H,"scale") <- scale
+  attr(H,"p") <- p
+  H
+}
+
+best.FP <- function(model,xform,degree=2){
+  form <- as.character(formula(model))
+  xvar <- as.character(xform)[2]
+  
+  pgrid <- as.matrix(c(-2,-1,-0.5,0,0.5,1,2,3))
+  if(degree==2){
+    pgrid <- expand.grid(pgrid,pgrid)
+    pgrid <- pgrid[which(pgrid[,2]>=pgrid[,1]),]
+  }
+
+  fm.grid <- rep(list(NULL),nrow(pgrid))
+  for(k in 1:nrow(pgrid)){
+    formk <- paste0(form[2],"~",gsub(xvar,paste0("FP(",xvar,",c(",paste0(pgrid[k,],collapse=","),"))"),form[3],fixed=TRUE))
+    fm.grid[[k]] <- update(model,formula=as.formula(formk))
+  }
+  LL.grid <- sapply(fm.grid,logLik)
+  best <- rev(order(LL.grid))[1]
+  model <- fm.grid[[best]]
+  power <- as.numeric(pgrid[best,])
+  LL <- LL.grid[best]
+  npar <- length(coef(model))+degree
+  aic <- -2*LL+2*npar
+  list(model=model,power=power,loglik=LL,aic=aic)
 }
