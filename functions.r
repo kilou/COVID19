@@ -337,7 +337,7 @@ pred.covid <- function(
   today <- data$date[nrow(data)]       # today i.e. last date entered in data
   days <- c(data$date,today+c(1:nday)) # vector of days for observed data and predictions
   j <- which(days==today)              # index of today
-  ipd <- attr(data,"ipd")
+  ipd <- attr(data,"ipd")              # extract individual patient data when available
   
   # Define prediction type (only applies to mortality!)
   allowed <- attr(data,"type")
@@ -388,9 +388,10 @@ pred.covid <- function(
     set.seed(seed+s*10)
     npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
     
-    hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
-    lag <- unlist(mapply(rlag,n=npat,mlag=mlag,vlag=vlag,SIMPLIFY=FALSE))    # ICU lag for these patients
-    los <- unlist(mapply(rlos,n=npat,mlos=mlos,vlos=vlos,SIMPLIFY=FALSE))    # length of stay in ICU for these patients
+    pos <- which(npat>0) # only consider days with new ICU patients (speeds-up calculations)
+    hos.in <- unlist(mapply(rep,x=c(1:(j+nday))[pos],times=npat[pos],SIMPLIFY=FALSE))       # define hospitalization day (before ICU) for these patients
+    lag <- unlist(mapply(rlag,n=npat[pos],mlag=mlag[pos],vlag=vlag[pos],SIMPLIFY=FALSE))    # ICU lag for these patients
+    los <- unlist(mapply(rlos,n=npat[pos],mlos=mlos[pos],vlos=vlos[pos],SIMPLIFY=FALSE))    # length of stay in ICU for these patients
     
     # Define theoretical ICU day-in and day-out for these patients
     icu.in <- hos.in+lag
@@ -408,11 +409,10 @@ pred.covid <- function(
           icu.out[sel] <- icu.out[sel]*admit         # all patients with icu.out=0 are NOT admitted
         }
       }
+      # Restrict attention to patients that will be effectively admitted in ICU
+      icu.in <- icu.in[icu.in>0]
+      icu.out <- icu.out[icu.out>0]
     }
-    
-    # Restrict attention to patients that will be effectively admitted in ICU
-    icu.in <- icu.in[icu.in>0]
-    icu.out <- icu.out[icu.out>0]
     
     # Fill-in bed occupancy matrix in ICU
     occ <- matrix(FALSE,nrow=length(icu.in),ncol=j+nday)
@@ -466,7 +466,8 @@ pred.covid <- function(
       N <- sum(npat)
       agecat <- ragecat(N,page)
       sex <- rsex(N,pfemale)
-      hos.in <- do.call("c",mapply(rep,x=days,times=npat,SIMPLIFY=FALSE))
+      pos <- which(npat>0) # only consider days with new hospitalized patients
+      hos.in <- do.call("c",mapply(rep,x=days[pos],times=npat[pos],SIMPLIFY=FALSE))
       los <- sim.los(agecat,mu2,sig2)
       hos.out <- hos.in+los
       h1 <- pred.h(los,agecat,mu1,sig1)       # hazard of dying
@@ -476,9 +477,8 @@ pred.covid <- function(
     }
     
     # Calculate daily nb of deaths
-    ndead <- integer(j+nday)
-    for(k in 1:(j+nday)){ndead[k] <- sum(dead[which(hos.out==days[k])])}
-    
+    ndead <- sapply(days,function(dd){sum(dead[hos.out==dd])})
+
     # In absence of IPD, replace historic simulated death counts with observed death counts when available (crude fix)
     if(type==2){ndead[1:j] <- data$ndead}
     ndead
