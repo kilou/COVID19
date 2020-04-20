@@ -62,7 +62,7 @@ histo(los,p)
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=30,nsim=2000,pars,pars_surv,data,type=NULL,ncpu=4)
+pred <- pred.covid(nday=60,nsim=2000,pars,pars_surv,data,type=NULL,ncpu=4)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p)

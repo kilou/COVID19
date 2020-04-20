@@ -291,7 +291,7 @@ pred.covid <- function(
   pars,      # dataframe with parameters
   pars_surv, # dataframe with parameters for survival models (no user interaction!)
   data,      # dataframe with VD data
-  type=NULL, # type of predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start
+  type=NULL, # type of mortality predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start with prediction interval on past
   ncpu,      # nb of parallel processes (use 1 for serial compiutations)
   seed=1234  # seed for reproducible computations
 ){
@@ -307,16 +307,16 @@ pred.covid <- function(
   j <- which(days==today)              # index of today
   ipd <- attr(data,"ipd")
   
-  # Define prediction type
+  # Define prediction type (only applies to mortality!)
   if(is.null(type)){
     # Automatic detection based on data
     if(!is.null(ipd)){
       type <- 1 # use IPD
     } else {
       if(!is.null(data$ndead)){
-        type <- 2 # 
+        type <- 2 # simulate epidemic from start but replace simulated deaths with observed deaths in past
       } else {
-        type <- 3
+        type <- 3 # simulate epidemic from start and provide prediction intervals for past
       }
     }
   } else {
@@ -366,11 +366,7 @@ pred.covid <- function(
   
   # Calculate nb of ICU beds required (function to be parallelized)
   fun.nbed <- function(s){
-<<<<<<< HEAD
     set.seed(seed+s*10)
-=======
-    set.seed(seed+10*s)
->>>>>>> aziz_dev
     npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
     
     hos.in <- unlist(mapply(rep,x=1:(j+nday),times=npat,SIMPLIFY=FALSE))     # define hospitalization day (before ICU) for these patients
@@ -409,11 +405,7 @@ pred.covid <- function(
   
   # Calculate nb of daily deaths (function to be parallelized)
   fun.ndead <- function(s){
-<<<<<<< HEAD
     set.seed(seed+s*10)
-=======
-    set.seed(seed+10*s)
->>>>>>> aziz_dev
     npat <- ninc[s,] # nb of new patients hospitalized each day
     
     if(type==1){
