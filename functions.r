@@ -230,19 +230,19 @@ import.covid <- function(
   nsheets <- length(sheets)
   for(k in 1:nsheets){
     raw <- as.data.frame(readxl::read_xlsx(input.file,sheet=k))
-    if(colnames(raw)[1]=="no_unique"){type <- "ipd"; sheet <- k; break} # ipd=individual patient data file
-    if(sum(colnames(raw)=="nhos")>0){type <- "agg"; sheet <- k; break}  # agg=aggregated data file
+    if(colnames(raw)[1]=="no_unique"){dat.type <- "ipd"; sheet <- k; break} # ipd=individual patient data file
+    if(sum(colnames(raw)=="nhos")>0){dat.type <- "agg"; sheet <- k; break}  # agg=aggregated data file
   }
 
   # Filter dates
-  date <- if(type=="ipd"){conv(raw[,"arrivee_hopital"],date.format)}else{conv(raw$date,date.format)}
+  date <- if(dat.type=="ipd"){conv(raw[,"arrivee_hopital"],date.format)}else{conv(raw$date,date.format)}
   start.date <- if(!is.na(start.date)){conv(start.date,format=date.format)}else{min(date,na.rm=T)}
   end.date <- if(!is.na(end.date)){conv(end.date,format=date.format)}else{max(date,na.rm=T)}
   sel <- which(date>=start.date & date<=end.date)
   raw <- raw[sel,]
   
   # Individual patient data
-  if(type=="ipd"){
+  if(dat.type=="ipd"){
     # Define variables
     id <- as.character(raw[,"no_unique"])
     age <- as.numeric(raw[,"age"])
@@ -268,7 +268,7 @@ import.covid <- function(
   }
   
   # Aggregated data
-  if(type=="agg"){
+  if(dat.type=="agg"){
     # Filter dates
     ipd <- NULL
     data <- raw
@@ -278,8 +278,14 @@ import.covid <- function(
   data$nicu <- as.integer(data$nicu)
   if(!is.null(data$ndead)){data$ndead <- as.integer(data$ndead)}
   
-  # Add attribute with individual patient data when available
+  # Defined allowed prediction types for mortality
+  if(dat.type=="ipd"){type <- c(1,2,3)}
+  if(dat.type=="agg" & !is.null(data$ndead)){type <- c(2,3)}
+  if(dat.type=="agg" & is.null(data$ndead)){type <- 3}
+
+  # Add attribute with individual patient data (when available) and allowed prediction type
   attr(data,"ipd") <- ipd
+  attr(data,"type") <- type
   data
 }
 
@@ -308,22 +314,9 @@ pred.covid <- function(
   ipd <- attr(data,"ipd")
   
   # Define prediction type (only applies to mortality!)
-  if(is.null(type)){
-    # Automatic detection based on data
-    if(!is.null(ipd)){
-      type <- 1 # use IPD
-    } else {
-      if(!is.null(data$ndead)){
-        type <- 2 # simulate epidemic from start but replace simulated deaths with observed deaths in past
-      } else {
-        type <- 3 # simulate epidemic from start and provide prediction intervals for past
-      }
-    }
-  } else {
-    # Check type coherence
-    if(type==1 & is.null(ipd)){stop("Predictions of type 1 cannot be used when 'data' do not contain individual patient data")}
-    if(type==2 & is.null(data$ndead)){stop("Prediction of type 2 cannot be used in absence of mortality data")}
-  }
+  allowed <- attr(data,"type")
+  if(is.null(type)){type <- min(allowed)}
+  if(type<min(allowed)){stop("Chosen prediction type is incompatible with data")}
   
   # Get parameters for each day in "days"
   ind <- sapply(days,function(d){max(which(pars$date<=d))})
