@@ -75,12 +75,6 @@ ui <- shinyUI(fluidPage(
                       accept = 
          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
 
-            ##### DEBUG #####
-
-            # uiOutput("data_exists"),
-
-            #################
-
             # Display date since...
             uiOutput("start_date_ui"),
 
@@ -165,11 +159,11 @@ ui <- shinyUI(fluidPage(
               uiOutput("sdate_ui"),
 
               numericInput(inputId = "pipar",
-                                   label = "Interval length",
-                                   value = 0.9,
-                                   min = 0,
-                                   max = 1,
-                                   step = 0.05)
+                           label = "Interval length",
+                           value = 0.9,
+                           min = 0,
+                           max = 1,
+                           step = 0.05)
 
             ),
 
@@ -213,9 +207,18 @@ ui <- shinyUI(fluidPage(
 
             ),
 
-            # column(2, ),
 
-            column(2,
+            column(3,
+
+              uiOutput("sim_type_ui")
+
+            )
+
+          ),
+
+          fluidRow(
+
+            column(3,
 
               strong("Compute forecasts"),
 
@@ -225,7 +228,7 @@ ui <- shinyUI(fluidPage(
 
             ),
 
-            column(2,
+            column(3,
 
               strong("Download forecasts"),
 
@@ -233,30 +236,13 @@ ui <- shinyUI(fluidPage(
 
               uiOutput("dl_forcasts_ui")
 
-            )
-
-          ),
-
-          br(),
-
-          fluidRow(
-
-          ##### DEBUG #####
-
-          # uiOutput("pars"),
-          # uiOutput("data"),
-          # uiOutput("days"),
-          # uiOutput("pred_nhos"),
-          # uiOutput("pred_ndead_cumul"),
-          # uiOutput("is_fc_ndead"),
-
-          #################
+            ),
 
             column(3,
 
               uiOutput("pinlen_ui")
 
-            ),
+            )
 
           ),
 
@@ -328,7 +314,7 @@ server <- function(input, output, session) {
 
 # ---------------------------------- DATA ----------------------------------- #
 
-  input_data <- reactive({
+  data <- reactive({
 
     req(input$file1)
 
@@ -352,15 +338,15 @@ server <- function(input, output, session) {
   # Is data ready?
   rv$is_data <- FALSE
   observe({
-    req(input_data())
+    req(data())
     rv$is_data <- TRUE
   })
 
   # Check if data contain a `ndead` column
   rv$is_ndead <- FALSE
   observe({
-    req(input_data())
-    rv$is_ndead <- any(names(input_data()) == "ndead")
+    req(data())
+    rv$is_ndead <- any(names(data()) == "ndead")
   })
 
   # Correct date format
@@ -368,7 +354,7 @@ server <- function(input, output, session) {
 
     if (rv$is_data) {
 
-      if (any(is.na(input_data()$date))) {
+      if (any(is.na(data()$date)) | nrow(data()) == 0) {
 
         showModal(modalDialog(
           title = "Fail to read the date",
@@ -386,28 +372,29 @@ server <- function(input, output, session) {
   # Start date
   output$start_date_ui <- renderUI({
 
-    val <- as.Date("2020-02-25")
-    if  (val < min(input_data()$date) | val > max(input_data()$date)) {
-      val <-  min(input_data()$date)
+    if (all(!is.na(data()$date)) & nrow(data()) > 0) {
+
+      val <- as.Date("2020-02-25")
+      if  (val < min(data()$date) | val > max(data()$date)) {
+        val <-  min(data()$date)
+      }
+      dateInput(inputId = "start_date",
+                label = "Display data since...",
+                value = val,
+                min = min(data()$date),
+                max = max(data()$date),
+                format = "yyyy-mm-dd")
+
     }
-    dateInput(inputId = "start_date",
-                        label = "Display data since...",
-                        value = val,
-                        min = min(input_data()$date),
-                        max = max(input_data()$date),
-                        format = "yyyy-mm-dd")
-
-  })
-
-  data <- reactive({
-
-    subset(input_data(), date >= input$start_date)
 
   })
 
   output$table_data <- renderTable({
 
-    tbl <- data()
+    req(input$start_date)
+
+    tbl <- data() %>%
+      filter(date >= input$start_date)
 
     tbl$date <- as.character(tbl$date)
 
@@ -430,7 +417,10 @@ server <- function(input, output, session) {
 
   output$plot_nhos <- renderPlot({
 
+    req(input$start_date)
+
     data() %>%
+      filter(date >= input$start_date) %>%
       ggplot(aes(x = date, y = nhos)) +
       geom_col(fill = "#428bca") +
       theme_minimal() +
@@ -440,7 +430,10 @@ server <- function(input, output, session) {
 
   output$plot_nicu <- renderPlot({
 
+    req(input$start_date)
+
     data() %>%
+      filter(date >= input$start_date) %>%
       ggplot(aes(x = date, y = nicu)) +
       geom_col(fill = "#428bca") +
       theme_minimal() +
@@ -450,8 +443,11 @@ server <- function(input, output, session) {
 
   output$plot_ndead <- renderPlot({
 
+    req(input$start_date)
+
     if (rv$is_ndead) {
       data() %>%
+        filter(date >= input$start_date) %>%
         mutate(ndead = cumsum(ndead)) %>%
         ggplot(aes(x = date, y = ndead)) +
         geom_col(fill = "#428bca") +
@@ -628,7 +624,27 @@ server <- function(input, output, session) {
   # data used for prediction
   data_p <- reactive({
 
-    subset(data(), date < input$sim_start_date)
+    #subset(data(), date < input$sim_start_date)
+
+    req(input$file1)
+    req(input$start_date)
+    req(input$sim_start_date)
+
+    tryCatch(
+      {
+        df <- import.covid(
+          input.file = input$file1$datapath,
+          date.format = input$date_format,
+          end.date = input$sim_start_date - 1
+        )
+      },
+      error = function(e) {
+        # return a safeError if a parsing error occurs
+        stop(safeError(e))
+      }
+    )
+
+    return(df)
 
   })
 
@@ -636,17 +652,34 @@ server <- function(input, output, session) {
 
     dm <- max(data()$date)
     dateInput(inputId = "sim_end_date",
-                        label = "Prediction until...",
-                        value = dm + 7,
-                        min = dm + 1,
-                        max = NULL,
-                        format = "yyyy-mm-dd")
+              label = "Prediction until...",
+              value = dm + 7,
+              min = dm + 1,
+              max = NULL,
+              format = "yyyy-mm-dd")
 
   })
 
   nday <- reactive({
 
     input$sim_end_date - max(data_p()$date)
+
+  })
+
+  output$sim_type_ui <- renderUI({
+
+    req(data_p())
+
+    choices = list(`Use individual data`            = 1,
+                   `Use deaths data`                = 2,
+                   `Use hospitalizations data only` = 3)
+
+    types <- attr(data_p(), "type")
+
+    selectInput(inputId = "sim_type",
+                label = "Type of simulations",
+                choices = choices[types],
+                selected = min(types))
 
   })
 
@@ -690,8 +723,15 @@ server <- function(input, output, session) {
 
     show_modal_spinner() # show the modal window
 
-    rv$pred <- pred.covid(nday = nday(), nsim = 1000, pars(), pars_surv,
-                          data_p(), ncpu = 8)
+    rv$pred <- pred.covid(
+      nday = nday(),
+      nsim = 1000,
+      pars = pars(),
+      pars_surv =pars_surv,
+      data = data_p(),
+      type = input$sim_type,
+      ncpu = 8
+    )
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))
 
