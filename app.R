@@ -507,6 +507,7 @@ server <- function(input, output, session) {
                       col_err_los = col_err_los, 
                       row_err_los = row_err_los) %>%
           hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
+          hot_col(col = c("megp", "vegp"), format = "0.000") %>%
           hot_validate_numeric(cols = "megp", min = 1) %>%
           hot_validate_numeric(cols = "vegp", min = 0) %>%
           hot_validate_numeric(cols = "micp", min = 0, max = 1) %>%
