@@ -17,15 +17,8 @@ data <- import.covid(
 today <- data$date[nrow(data)]
 
 # Load parameters
-pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
+pars <- as.data.frame(readxl::read_xlsx("params.xlsx",sheet="params"))
 pars$date <- conv(pars$date)
-
-# Load population characteristics (only for mortality model)
-pop <- as.data.frame(readxl::read_xlsx("population.xlsx"))
-pop$date <- conv(pop$date)
-
-# Load parameters for mortality model
-pars_surv <- as.data.frame(readxl::read_xlsx("params_surv.xlsx"))
 
 # ------------------------------------------------------------------------------------------------------
 # VISUALIZE PRIOR DISTRIBUTIONS                        
@@ -62,6 +55,18 @@ mlos <- 13   # mean LOS
 vlos <- 154  # variability. vlos must be >=mlos with vlos=mlos corresponding to Poisson model 
 los <- rlos(1e06,mlos,vlos)
 histo(los,p)
+
+# Plot age distribution for each sex
+page <- as.data.frame(readxl::read_xlsx("params.xlsx",sheet="age_distrib"))[1,-1]
+pfem <- as.data.frame(readxl::read_xlsx("params.xlsx",sheet="sex_distrib"))[1,-1]
+age.breaks <- seq(0,105,by=15)
+pop <- rpop(1e06,age.breaks,page,pfem)
+
+xM <- pop$age[pop$sex=="M"]; attr(xM,"breaks") <- age.breaks
+xF <- pop$age[pop$sex=="F"]; attr(xF,"breaks") <- age.breaks
+par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+histo(xM); title("Males")
+histo(xF); title("Females")
 
 # ------------------------------------------------------------------------------------------------------
 # FORECASTS USING PRED.COVID() FUNCTION                        
