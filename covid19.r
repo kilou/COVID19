@@ -7,19 +7,24 @@ source("functions.r")
 
 # Load data and parameters
 data <- import.covid(
-  input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
+  input.file="data/20.04.17 - Données REDCap hôpitaux anonymisés.xlsx",
   #input.file="data/data_14042020.xlsx",
   start.date=NA,
   end.date="04/13/2020",
   date.format="%m/%d/%Y"
 )
 #writexl::write_xlsx(data,path="data/data_14042020.xlsx")
-
-pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
-pars$date <- conv(pars$date)
 today <- data$date[nrow(data)]
 
-# Load parameters for survival models
+# Load parameters
+pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
+pars$date <- conv(pars$date)
+
+# Load population characteristics (only for mortality model)
+pop <- as.data.frame(readxl::read_xlsx("population.xlsx"))
+pop$date <- conv(pop$date)
+
+# Load parameters for mortality model
 pars_surv <- as.data.frame(readxl::read_xlsx("params_surv.xlsx"))
 
 # ------------------------------------------------------------------------------------------------------

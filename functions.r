@@ -72,23 +72,23 @@ qlos<- function(
 ){qnbinom(p,mu=mlos,size=mlos^2/(vlos-mlos))}
 
 # ------------------------------------------------------------------------------------------------------
-# Draw age category
-ragecat <- function(n,prob){
-  ind <- t(rmultinom(n,size=1,prob=prob))
-  if(is.null(colnames(ind))){colnames(ind) <- c(1:length(prob))}
-  agecat <- integer(n)
-  for(k in 1:ncol(ind)){
-    pos <- which(ind[,k]==1)
-    agecat[pos] <- rep(k,length(pos))
-  }
-  agecat
-}
-
-# ------------------------------------------------------------------------------------------------------
-# Draw sex
-rsex <- function(n,pfemale=0.4){
-  sex <- rbinom(n,size=1,prob=pfemale)
-  factor(sex,levels=c(0,1),labels=c("M","F"))  
+# Generate dataframe with age and sex for fictive patients
+rpop <- function(
+  n,       # total nb of patients                     
+  breaks,  # breaks for age categories
+  page,    # proportion of patients in each age category (should sum-up to 1)
+  pfem     # proportion of females in each age category
+){
+  stopifnot(length(page)==length(pfem))
+  stopifnot(length(breaks)==(length(page)+1))
+  stopifnot(sum(page)==1)
+  ncat <- length(page)
+  nT <- round(n*page); nT[ncat] <- n-sum(nT[1:(ncat-1)]) # nb patients in each age category
+  nF <- round(nT*pfem)                                   # nb females in each age category
+  nM <- nT-nF                                            # nb males in each age category
+  ageF <- as.numeric(unlist(mapply(runif,n=nF,min=breaks[1:ncat],max=breaks[2:(ncat+1)],SIMPLIFY=FALSE)))
+  ageM <- as.numeric(unlist(mapply(runif,n=nM,min=breaks[1:ncat],max=breaks[2:(ncat+1)],SIMPLIFY=FALSE)))
+  data.frame(age=c(ageM,ageF),sex=factor(c(rep("M",sum(nM)),rep("F",sum(nF))),levels=c("M","F")))
 }
 
 # ------------------------------------------------------------------------------------------------------
@@ -96,10 +96,16 @@ rsex <- function(n,pfemale=0.4){
 rgb.blue <- t(col2rgb("#428bca"))/255
 
 # ------------------------------------------------------------------------------------------------------
-# Histogram for parameters
-histo <- function(x,prob){
+# Histogram
+histo <- function(x,prob=NULL){
   if(var(x)>0){
-    h <- hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE)
+    brks <- attr(x,"breaks")
+    if(is.null(brks)){
+      hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE)
+    } else {
+      hist(x,breaks=brks,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),xaxt="n",yaxt="n",yaxs="i",freq=FALSE)
+      axis(side=1,at=brks)
+    }
     if(!is.null(prob)){
       stopifnot(length(prob)==3)
       q <- quantile(x,probs=prob)
@@ -326,6 +332,7 @@ pred.covid <- function(
   nsim,      # nb of simulations
   pars,      # dataframe with parameters
   pars_surv, # dataframe with parameters for survival models (no user interaction!)
+  pop,       # dataframe with 
   data,      # dataframe with VD data
   type=NULL, # type of mortality predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start with prediction interval on past
   ncpu,      # nb of parallel processes (use 1 for serial compiutations)
@@ -336,6 +343,7 @@ pred.covid <- function(
   
   # Check consistency of dates
   if(min(pars$date)>min(data$date)){stop("First date defining parameters must be anterior or equal to first date in the data!")}
+  if(min(pop$date)>min(data$date)){stop("First date defining population must be anterior or equal to first date in the data!")}
   
   # Some useful things
   today <- data$date[nrow(data)]       # today i.e. last date entered in data
@@ -361,6 +369,11 @@ pred.covid <- function(
   mlos <- pars$mlos[ind]
   vlos <- pars$vlos[ind]
   
+  # Get population characteristics for each day in "days"
+  ind <- sapply(days,function(d){max(which(pop$date<=d))})
+  page <- pop[ind,2:4]
+  psex <- pop[ind,5:7]
+  
   # Get parameters for survival models
   amin <- pars_surv$amin  
   page <- pars_surv$prob  # proportion of patients in each age category
@@ -383,15 +396,12 @@ pred.covid <- function(
   for(k in 1:(j+nday-1)){ninc[,k+1] <- nhos[,k+1]-nhos[,k]}
   if(sum(ninc<0)>0){stop("Some incident counts are negative!")}
   
-  # Calculate incident cases that will require intensive cares at some point (should be placed inside fun.nbed instead!)
-  nicu <- matrix(nrow=nsim,ncol=j+nday)
-  for(k in 1:(j+nday)){nicu[,k] <- round(ricp(nsim,micp[k],vicp[k])*ninc[,k])}
-  
   # Calculate nb of ICU beds required (function to be parallelized)
   fun.nbed <- function(s){
     set.seed(seed+s*10)
-    npat <- nicu[s,] # nb of patients that will require ICU at some point for each hospitalization day
-    
+    icp <- unlist(mapply(ricp,n=1,micp=micp,vicp=vicp,SIMPLIFY=FALSE))
+    npat <- round(icp*ninc[s,]) # nb of patients that will require ICU at some point for each hospitalization day
+
     pos <- which(npat>0) # only consider days with new ICU patients (speeds-up calculations)
     hos.in <- unlist(mapply(rep,x=c(1:(j+nday))[pos],times=npat[pos],SIMPLIFY=FALSE))       # define hospitalization day (before ICU) for these patients
     lag <- unlist(mapply(rlag,n=npat[pos],mlag=mlag[pos],vlag=vlag[pos],SIMPLIFY=FALSE))    # ICU lag for these patients
@@ -685,6 +695,8 @@ FP <- function(x,p,shift=NULL,scale=NULL){
   H
 }
 
+# -----------------------------------------------------------------------------
+# Find best fitting FP power for continuous variable defined in xform
 best.FP <- function(model,xform,degree=2){
   form <- as.character(formula(model))
   xvar <- as.character(xform)[2]
@@ -707,5 +719,43 @@ best.FP <- function(model,xform,degree=2){
   LL <- LL.grid[best]
   npar <- length(coef(model))+degree
   aic <- -2*LL+2*npar
-  list(model=model,power=power,loglik=LL,aic=aic)
+  grid <- cbind(pgrid,LL.grid)
+  colnames(grid) <- c(paste0("p",c(1:degree)),"loglik")
+  list(model=model,power=power,loglik=LL,aic=aic,grid=grid)
 }
+
+# -----------------------------------------------------------------------------
+# AIC for linear model with one continuous variable modeled as fractional polynomials
+aic <- function(model,fp.degree=0){
+  LL <- logLik(model)[1]
+  npar <- length(coef(model))+fp.degree
+  -2*LL+2*npar
+}
+
+# -----------------------------------------------------------------------------
+# Extract right hand side of model formula
+xform <- function(formula){
+  as.formula(paste0("~",as.character(formula)[3]),env=environment(formula))
+}
+
+# -----------------------------------------------------------------------------
+# Predict survival and hazard from a Weibull fit
+pred.weibull <- function(
+  formula,
+  newdata,
+  coef,
+  what="survival"
+){
+  frm <- model.frame(formula,newdata)
+  t <- model.response(frm)
+  X <- model.matrix(formula,frm)
+  nX <- ncol(X)
+  beta <- coef[1:nX]
+  sigma <- exp(coef[nX+1])
+  mu <- as.numeric(X%*%beta)
+  if(what=="survival"){output <- exp(-exp((log(t)-mu)/sigma))}
+  #if(what=="survival"){output <- 1-pweibull(t,shape=1/sigma,scale=exp(mu))}
+  if(what=="hazard"){output <- exp((log(t)-mu)/sigma)/(sigma*t)}
+  output
+}
+
