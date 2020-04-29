@@ -4,7 +4,7 @@ rm(list=ls())
 reqpack <- function(X) {
   pak_failed <- which(!unlist(lapply(X, require, character.only = TRUE)))
   if(length(pak_failed)>=1){
-    install.packages(X[pak_failed], repos = "https://stat.ethz.ch/CRAN/")
+    install.packages(X[pak_failed], repos = "https://stat.ethz.ch/CRAN/",dependencies = T)
     lapply(X[pak_failed], require, character.only = TRUE)
   }
 }
