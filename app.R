@@ -25,8 +25,12 @@ options(stringsAsFactors = FALSE)
 source("functions.r")
 
 # Load known parameters
-pars0 <- as.data.frame(read_xlsx("params.xlsx"))
+pars0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "params"))
 pars0$date <- conv(pars0$date, format = "%d.%m.%Y")
+age0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "age_distrib"))
+age0$date <- conv(age0$date, format = "%d.%m.%Y")
+sex0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "sex_distrib"))
+sex0$date <- conv(sex0$date, format = "%d.%m.%Y")
 pars_surv <- as.data.frame(read_xlsx("params_surv.xlsx"))
 
 
@@ -177,6 +181,61 @@ ui <- shinyUI(fluidPage(
             column(5,
 
               plotlyOutput("par_evol")
+
+            )
+
+          )
+
+        )
+
+      ),
+
+# ------------------- ADDITIONAL PARMETERS FOR MORTALITY -------------------- #
+
+      tabPanel("Parameters for mortality",
+
+        fluidPage(
+
+          h3("Additional parameters for mortality",
+            span(icon("question-circle"), id = "pars_pop_info"),
+            tippy_this(
+              elementId = "pars_pop_info",
+              tooltip = "pars_pop_info.html" %>%
+                {readChar(., file.info(.)$size)},
+              allowHTML = TRUE,
+              placement = "right",
+              maxWidth = "none",
+              theme = "light"
+            )
+          ),
+
+          br(),
+
+          h4("Age distribution"),
+
+          rHandsontableOutput("age_tbl"),
+
+          br(),
+
+          h4("Female proportion per age class"),
+
+          rHandsontableOutput("sex_tbl"),
+
+          br(),
+
+          h3("Visualization: Age distribution per sex"),
+
+          fluidRow(
+
+            column(3,
+
+              uiOutput("sdate_pop_ui")
+
+            ),
+
+            column(9,
+
+              plotOutput("pop_hist")
 
             )
 
@@ -625,6 +684,125 @@ server <- function(input, output, session) {
 
   })
 
+# ------------------- ADDITIONAL PARMETERS FOR MORTALITY -------------------- #
+
+  age <- reactive({
+
+    if (is.null(input$age_tbl)) {
+      DF = age0
+    } else {
+      DF = hot_to_r(input$age_tbl)
+      DF$date <- as.Date(DF$date, format = "%Y-%m-%d")
+    }
+    if (all(!is.na(DF$date))) {
+      DF <- DF %>% arrange(date)
+    }
+    for (i in 1:nrow(DF)) {
+      if (sum(DF[i, 2:(ncol(DF) - 1)], na.rm = TRUE) <= 1) {
+        DF[i, ncol(DF)] <- 1 - sum(DF[i, 2:(ncol(DF) - 1)], na.rm = TRUE)
+      }
+    }
+    DF
+
+  })
+
+  output$age_tbl <- renderRHandsontable({
+
+      if (!is.null(age())) {
+
+        row_err <- which(apply(age()[, -1], 1, sum, na.rm = TRUE) > 1) - 1
+        rhandsontable(mutate(age(), date = as.character(date)),
+                      useTypes = TRUE, stretchH = "all",
+                      row_err = row_err) %>%
+          hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
+          # hot_col(col = names(age())[-1], format = "0.00%") %>%
+          hot_validate_numeric(cols = names(age())[-1], min = 0, max = 1) %>%
+          hot_cols(renderer = "
+            function(instance, td, row, col, prop, value, cellProperties) {
+              Handsontable.renderers.NumericRenderer.apply(this, arguments);
+              if (instance.params) {
+                  hrow = instance.params.row_err
+                  hrow = hrow instanceof Array ? hrow : [hrow]
+              }
+              if (instance.params && hrow.includes(row)) {
+                td.style.background = 'red';
+              }
+            }")
+
+      }
+
+  }) %>% debounce(1000)
+
+  sex <- reactive({
+
+    if (is.null(input$sex_tbl)) {
+      DF = sex0
+    } else {
+      DF = hot_to_r(input$sex_tbl)
+      DF$date <- as.Date(DF$date, format = "%Y-%m-%d")
+    }
+    if (all(!is.na(DF$date))) {
+      DF <- DF %>% arrange(date)
+    }
+    DF
+
+  })
+
+  output$sex_tbl <- renderRHandsontable({
+
+      if (!is.null(sex())) {
+
+        rhandsontable(mutate(sex(), date = as.character(date)),
+                      useTypes = TRUE, stretchH = "all") %>%
+          hot_col(col = "date", dateFormat = "YYYY-MM-DD", type = "date") %>%
+          # hot_col(col = names(age())[-1], format = "0.00%") %>%
+          hot_validate_numeric(cols = names(sex())[-1], min = 0, max = 1)
+
+      }
+
+  }) %>% debounce(1000)
+
+  rv$sdate_pop <- min(c(age0$date, sex0$date))
+
+  output$sdate_pop_ui <- renderUI({
+
+    selectInput(inputId = "sdate_pop",
+                label = "Date",
+                choices = sort(unique(c(age()$date, sex()$date))),
+                selected = rv$sdate_pop)
+
+  })
+
+  observe({
+
+    if (!(rv$sdate_pop %in% sort(unique(c(age()$date, sex()$date))))) {
+      rv$sdate_pop <- min(c(age()$date, sex()$date))
+    }
+
+  })
+
+  output$pop_hist <- renderPlot({
+
+    req(input$sdate_pop)
+    d <- input$sdate_pop
+    i_age <- max(which(age()$date %>% {!is.na(.) & . <= d}))
+    i_sex <- max(which(sex()$date %>% {!is.na(.) & . <= d}))
+    age.breaks <- seq(0,105,by=15)
+    pop <- rpop(1e06, age.breaks, age()[i_age, -1], sex()[i_sex, -1])
+    validate(need(pop, ""))
+    xM <- pop$age[pop$sex == "M"]
+    attr(xM, "breaks") <- age.breaks
+    xF <- pop$age[pop$sex == "F"]
+    attr(xF, "breaks") <- age.breaks
+    old.par <- par(mfrow=c(1, 2), mar=c(3, 3, 2, 0.5), mgp=c(1.8, 0.6, 0))
+    histo(xM)
+    title("Males")
+    histo(xF)
+    title("Females")
+    par(old.par)
+
+  })
+
 # -------------------------------- FORECASTS -------------------------------- #
 
   output$sim_start_date_ui <- renderUI({
@@ -747,6 +925,7 @@ server <- function(input, output, session) {
       nsim = 1000,
       pars = pars(),
       pars_surv =pars_surv,
+      pop = NULL,
       data = data_p(),
       type = input$sim_type,
       ncpu = 8
