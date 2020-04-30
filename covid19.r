@@ -17,8 +17,10 @@ data <- import.covid(
 today <- data$date[nrow(data)]
 
 # Load parameters
-pars <- as.data.frame(readxl::read_xlsx("params.xlsx",sheet="params"))
-pars$date <- conv(pars$date)
+pars <- pars.covid(
+  input.file="params.xlsx",
+  date.format="%d.%m.%Y"
+)
 
 # ------------------------------------------------------------------------------------------------------
 # VISUALIZE PRIOR DISTRIBUTIONS                        

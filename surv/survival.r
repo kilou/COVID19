@@ -180,9 +180,11 @@ best.FP(fm10,xform=~age,degree=1)$power
 fm13 <- survreg(Surv(los,dead)~FP(age,0.5)+ic+sex,data=imp[[1]],dist="weibull"); aic(fm13,1) # worse than fm10
 fm14 <- survreg(Surv(los,dead)~FP(age,0.5)*ic+sex,data=imp[[1]],dist="weibull"); aic(fm14,1) # worse than fm10
 
+fm15 <- survreg(Surv(los,dead)~FP(age,c(1,1),shift=1,scale=100)*ic+sex,data=imp[[1]],dist="weibull"); aic(fm15)
+
 # Best death model
 #****************************************
-formula.dead <- Surv(los,dead)~age+ic+sex
+formula.dead <- Surv(los,dead)~FP(age,c(3,3),shift=1,scale=100)+ic+sex
 #****************************************
 
 # Fit best model to multiple imputed datasets
@@ -227,6 +229,8 @@ dev.off()
 # Base model
 fm20 <- survreg(Surv(los,exit)~age+ic+sex,data=imp[[1]],dist="weibull"); aic(fm20)
 
+fm20 <- survreg(Surv(los,exit)~age+ic+sex,data=imp[[1]],dist="weibull",weight=1-imp[[m]]$dead); aic(fm20)
+
 # Test interaction age*ic using degree 2 FP
 best.FP(fm20,xform=~age,degree=2)$power
 fm21 <- survreg(Surv(los,exit)~FP(age,c(1,1))+ic+sex,data=imp[[1]],dist="weibull"); aic(fm21,2) # worse than fm20
@@ -238,9 +242,13 @@ fm23 <- survreg(Surv(los,exit)~FP(age,c(1,1))*ic+sex*ic,data=imp[[1]],dist="weib
 # Test interaction sex*age
 fm24 <- survreg(Surv(los,exit)~FP(age,c(1,1))*ic+sex*FP(age,c(1,1)),data=imp[[1]],dist="weibull"); aic(fm24,2) # worse than fm22
 
+fm25 <- survreg(Surv(los,exit)~age*ic+sex,data=imp[[1]],dist="weibull"); aic(fm25,2) # worse than fm22
+best.FP(fm25,xform=~age,degree=2)$power
+
 # Best exit model
 #*********************************************************************
 formula.exit <- Surv(los,exit)~FP(age,c(1,1),shift=1,scale=100)*ic+sex
+formula.exit <- Surv(los,exit)~FP(age,c(3,3),shift=1,scale=100)*(ic+sex)+ic*sex
 #*********************************************************************
 
 # Fit best model to multiple imputed datasets
@@ -263,7 +271,7 @@ form <- as.formula(paste0("t~",as.character(xform(formula.exit))[2]),env=environ
 par(mfrow=c(2,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
 for(h in 1:2){ # ic status
   for(l in 1:2){ # sex
-    plot(c(0,35),c(0,1),type="n",xlab="Time",ylab="Fraction still hospitalized")
+    plot(c(0,60),c(0,1),type="n",xlab="Time",ylab="Fraction still hospitalized")
     title(paste(c("Without IC","With IC")[h],"-",c("Males","Females")[l]))
     for(m in 1:M){
       km1 <- survfit(Surv(los,exit)~agecat2,data=subset(imp[[m]],ic==c(0,1)[h] & sex==c("M","F")[l]))
@@ -274,7 +282,7 @@ for(h in 1:2){ # ic status
       surv <- pred.weibull(form,newdat,beta.exit,what="survival")
       lines(Time,surv,lwd=2,col=col.age[k])
     }
-    if(h==1 & l==1){legend("topright",levels(agecat),col=col.age,lwd=1,bty="n")}
+    if(h==1 & l==1){legend("topright",levels(agecat2),col=col.age,lwd=1,bty="n")}
   }
 }
 dev.off()
@@ -299,6 +307,27 @@ m_models <- list(
   )
 )
 save(m_models,file="m_models.Rdata")
+
+# Plot two survival curves
+form.dead <- as.formula(paste0("t~",as.character(xform(formula.dead))[2]),env=environment(formula.dead))
+form.exit <- as.formula(paste0("t~",as.character(xform(formula.exit))[2]),env=environment(formula.exit))
+pdf("surv/compare.pdf",width=12,height=8)
+par(mfrow=c(2,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+for(h in 1:2){ # ic status
+  for(l in 1:2){ # sex
+    plot(c(0,60),c(0,1),type="n",xlab="Time",ylab="")
+    title(paste(c("Without IC","With IC")[h],"-",c("Males","Females")[l]))
+    for(k in 1:length(age.mid)){
+      newdat <- data.frame(t=Time,age=rep(age.mid[k],npred),sex=factor(c("M","F")[l],levels=c("M","F")),ic=c(0,1)[h])
+      surv.dead <- pred.weibull(form.dead,newdat,beta.dead,what="survival")
+      surv.exit <- pred.weibull(form.exit,newdat,beta.exit,what="survival")
+      lines(Time,surv.dead,lwd=2,col=col.age[k])
+      lines(Time,surv.exit,lty=2,col=col.age[k])
+    }
+    #if(h==1 & l==1){legend("topright",levels(agecat2),col=col.age,lwd=1,bty="n")}
+  }
+}
+dev.off()
 
 # -----------------------------------------------------------------------------
 # PROBABILITY TO DIE AT THE END OF HOSPITAL STAY
@@ -352,17 +381,47 @@ h1.sim <- pred.weibull(f.dead,pop,m_models$dead$coef,what="hazard")
 h2.sim <- pred.weibull(f.exit,pop,m_models$exit$coef,what="hazard")
 p.sim <- h1.sim/h2.sim
 
+plot(h1.sim,h2.sim)
+abline(0,1)
+
+
+
+range(p.sim)
+
 pos0 <- which(pop$ic==0)
 pos1 <- which(pop$ic==1)
 
+pdf("surv/psim.pdf",width=12,height=8)
+par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+plot(pop$age[pos0],p.sim[pos0],col=c("blue","red")[(pop$sex=="F")*1+1][pos0],main="Without IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
+abline(h=1,lty=2)
+legend("topleft",c("Males","Females"),col=c("blue","red"),pch=1,bty="n")
+
+plot(pop$age[pos1],p.sim[pos1],col=c("blue","red")[(pop$sex=="F")*1+1][pos1],main="With IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
+abline(h=1,lty=2)
+dev.off()
+
+par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+plot(pop$los[pos0],p.sim[pos0],col=c("blue","red")[(pop$sex=="F")*1+1][pos0],main="Without IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
+abline(h=1,lty=2)
+legend("topleft",c("Males","Females"),col=c("blue","red"),pch=1,bty="n")
+
+plot(pop$los[pos1],p.sim[pos1],col=c("blue","red")[(pop$sex=="F")*1+1][pos1],main="With IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
+abline(h=1,lty=2)
+
+
+
+
 par(mfrow=c(1,2))
-plot(pop$age[pos0],p.sim[pos0],col=c("blue","red")[(pop$sex=="F")*1+1][pos0])
-abline(h=1,lty=2)
+pos <- which(p.sim>1)
+plot(pop$age,h1.sim)
+points(pop$age[pos],h1.sim[pos],col="red")
+plot(pop$age,h2.sim,ylim=c(0,0.1))
+points(pop$age[pos],h2.sim[pos],col="red")
 
-plot(pop$age[pos1],p.sim[pos1],col=c("blue","red")[(pop$sex=="F")*1+1][pos1])
-abline(h=1,lty=2)
+plot(pop$age,pop$los)
 
-
+boxplot(los~ic,data=pop)
 
 
 

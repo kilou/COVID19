@@ -326,6 +326,38 @@ import.covid <- function(
 }
 
 # ------------------------------------------------------------------------------------------------------
+# Load parameters and population characteristics
+pars.covid <- function(
+  input.file="params.xlsx",
+  date.format="%d.%m.%Y"     # date format
+){
+  require(readxl)
+  
+  # Load parameters
+  pars <- as.data.frame(read_xlsx(input.file,sheet="params"))
+  pars$date <- conv(pars$date,date.format)
+  
+  # Load age distribution
+  age_dist <- as.data.frame(read_xlsx(input.file,sheet="age_distrib"))
+  age_dist$date <- conv(age_dist$date,date.format)
+  
+  # Check that proportions of patients in each age category sum up to one
+  chk <- which(!apply(age_dist[,-1],1,sum)==1)
+  if(length(chk)>0){stop("Some dates include proportions of patients in each age category that do not sum-up to one!")}
+  
+  # Load sex distribution
+  sex_dist <- as.data.frame(read_xlsx(input.file,sheet="sex_distrib"))
+  sex_dist$date <- conv(sex_dist$date,date.format)
+  
+  # # Define age categories
+  # agecat <- colnames(age_dist)[-1]
+  # lower <- sapply(strsplit(agecat,split="-"),function(x){min(as.numeric(x))})
+  # upper <- sapply(strsplit(agecat,split="-"),function(x){max(as.numeric(x))})
+  
+  list(pars=pars,age_dist=age_dist,sex_dist=sex_dist)
+}
+
+# ------------------------------------------------------------------------------------------------------
 # Forecast nb of ICU beds
 pred.covid <- function(
   nday,      # nb of days to forecast
@@ -758,4 +790,3 @@ pred.weibull <- function(
   if(what=="hazard"){output <- exp((log(t)-mu)/sigma)/(sigma*t)}
   output
 }
-
