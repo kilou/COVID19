@@ -5,6 +5,10 @@ library(readxl)
 library(writexl)
 library(survival)
 
+# Time (for predictions)
+Time <- c(0.001,1:60)
+npred <- length(Time)
+
 # Load data
 raw <- as.data.frame(read_xlsx("data/20.04.17 - Données REDCap hôpitaux anonymisés.xlsx",sheet=1))
 age <- raw[,"age"]
@@ -16,6 +20,10 @@ hos_out <- as.Date(raw[,"sortie_hopital"],"%Y/%m/%d")
 dead <- raw[,"deces"]
 exit <- (!is.na(hos_out))*1
 
+# Calculate lag
+lag <- as.numeric(icu_in-hos_in)
+lag[lag==0] <- 0.001 # to avoid issues with lag=0
+
 # Calculate total LOS
 los <- as.numeric(hos_out-hos_in)
 cens <- (is.na(hos_out))*1
@@ -23,7 +31,7 @@ los[cens==1] <- as.numeric(max(hos_in,na.rm=T)-hos_in[cens==1])
 los[los==0] <- 0.001 # to avoid issues with los=0
 
 # Distribution of age categories and proportion of females in each age category
-age.breaks <- c(0,15,30,45,60,75,90,105)
+age.breaks <- c(0,70,85,105)
 ncat <- length(age.breaks)-1
 agecat <- cut(age,breaks=age.breaks,include.lowest=TRUE)
 page <- round(table(agecat)/nrow(raw),3); page[ncat] <- 1-sum(page[1:(ncat-1)])
@@ -31,11 +39,46 @@ pfem <- round(table(agecat[sex=="F"])/table(agecat),3)
 
 # Plot histogram of age distribution for each sex
 pop <- rpop(n=1e06,breaks=age.breaks,page,pfem)
-xM <- pop$age[pop$sex=="M"]; attr(xM,"breaks") <- age.breaks
-xF <- pop$age[pop$sex=="F"]; attr(xF,"breaks") <- age.breaks
-par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
-histo(xM); title("Males")
-histo(xF); title("Females")
+# xM <- pop$age[pop$sex=="M"]; attr(xM,"breaks") <- age.breaks
+# xF <- pop$age[pop$sex=="F"]; attr(xF,"breaks") <- age.breaks
+# par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+# histo(xM); title("Males")
+# histo(xF); title("Females")
+
+###############################################################################
+# MODEL FOR ICU LAG
+
+one <- lag/lag
+fm1 <- survreg(Surv(lag,one)~cut(age,breaks=c(0,70,105),include.lowest=T),dist="weibull"); aic(fm1)
+summary(fm1)
+
+#****************************************
+formula.lag <- Surv(lag,rep(1,length(lag)))~cut(age,breaks=c(0,70,105),include.lowest=T)
+#****************************************
+col.lag <- c("green","red")
+mid.lag <- tapply(age,cut(age,breaks=c(0,70,105),include.lowest=T),mean)
+
+# Fit model for lag
+fm.lag <- survreg(formula.lag,dist="weibull")
+coef.lag <- c(coef(fm.lag),log(fm.lag$scale))
+names(coef.lag)[length(coef.lag)] <- "log(scale)"
+V.lag <- vcov(fm.lag)
+
+
+par(mfrow=c(1,1),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+plot(c(0,35),c(0,1),type="n",xlab="Time",ylab="Survival")
+km <- survfit(formula.lag)
+lines(km,col=col.lag,lty=3)
+for(k in 1:length(mid.lag)){
+  newdat <- data.frame(age=rep(mid.lag[k],npred))
+  X <- model.matrix(xform(formula.lag),newdat)
+  cf <- coef.lag
+  mu <- as.numeric(X%*%cf[-length(cf)])
+  sigma <- exp(cf[length(cf)])
+  surv <- pred.weibull(Time,mu,sigma,what="survival")
+  lines(Time,surv,lwd=2,col=col.lag[k])
+}
+
 
 ###############################################################################
 # MODEL PROPORTION OF PATIENTS REQUIRING IC (BY AGE AND SEX)
@@ -49,15 +92,12 @@ ic[pos0] <- 0
 ic[pos1] <- 1
 
 # Initial model
-fm <- glm(ic~age+sex,family="binomial")
+fm <- glm(ic~cut(age,breaks=c(0,70,85,105),include.lowest=T)+sex,family="binomial")
 AIC(fm)
-best.FP(fm,xform=~age,degree=1)$aic
-best.FP(fm,xform=~age,degree=2)$aic
-best.FP(fm,xform=~age,degree=2)$power
 
 # Best icp model
 #******************************************************
-formula.icp <- ic~FP(age,c(3,3),shift=1,scale=100)+sex
+formula.icp <- ic~cut(age,breaks=c(0,70,85,105),include.lowest=T)+sex
 #******************************************************
 
 fm <- glm(formula.icp,family="binomial")
@@ -158,7 +198,7 @@ Time <- c(0.001,1:60)
 npred <- length(Time)
 
 # Age categories for mortality plots
-agecat2 <- cut(age,breaks=c(0,70,85,Inf),include.lowest=T)
+agecat2 <- cut(age,breaks=c(0,70,85,105),include.lowest=T)
 for(m in 1:M){imp[[m]] <- cbind(imp[[m]],agecat2)}
 age.mid <- tapply(age,agecat2,mean)
 col.age <- c("green","orange","red")
@@ -183,7 +223,7 @@ fm15 <- survreg(Surv(los,dead)~FP(age,c(1,1),shift=1,scale=100)*ic+sex,data=imp[
 
 # Best death model
 #****************************************
-formula.dead <- Surv(los,dead)~FP(age,c(3,3),shift=1,scale=100)+ic+sex
+formula.dead <- Surv(los,dead)~cut(age,breaks=c(0,70,85,105),include.lowest=T)+ic+sex
 #****************************************
 
 # Fit best model to multiple imputed datasets
@@ -247,7 +287,7 @@ best.FP(fm25,xform=~age,degree=2)$power
 
 # Best exit model
 #*********************************************************************
-formula.exit <- Surv(los,exit)~FP(age,c(1,1),shift=1,scale=100)*ic+sex
+formula.exit <- Surv(los,exit)~cut(age,breaks=c(0,70,85,105),include.lowest=T)*ic+sex
 formula.exit <- Surv(los,exit)~FP(age,c(3,3),shift=1,scale=100)*(ic+sex)+ic*sex
 #*********************************************************************
 
@@ -293,6 +333,11 @@ dev.off()
 ###############################################################################
 # SAVE MORTALITY MODELS FORMULA AND COEFFICIENTS
 mort <- list(
+  lag=list(
+    formula.lag,
+    coef=coef.lag,
+    vcov=V.lag
+  ),
   icp=list(
     formula=formula.icp,
     coef=beta.icp,

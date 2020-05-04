@@ -46,10 +46,43 @@ radp <- function(
 # ------------------------------------------------------------------------------------------------------
 # Random sample for lag (between hospitalization and ICU admission)
 rlag <- function(
-  n,    # nb draws
-  mlag, # expected value for lag (in days)
-  vlag  # variability
+  n,         # nb draws
+  mlag,      # expected value for lag (in days)
+  vlag       # variability
 ){rnbinom(n,mu=mlag,size=mlag^2/(vlag-mlag))}
+
+# Using negative binomial distribution
+rlag2 <- function(
+  mlag,
+  vlag,
+  lower=NULL,
+  upper=NULL
+){
+  n <- length(mlag)
+  if(is.null(lower)){lower <- rep(0,n)}
+  if(is.null(upper)){upper <- rep(Inf,n)}
+  plower <- unlist(mapply(pnbinom,q=lower,mu=mlag,size=mlag^2/(vlag-mlag),SIMPLIFY=FALSE))
+  pupper <- unlist(mapply(pnbinom,q=upper,mu=mlag,size=mlag^2/(vlag-mlag),SIMPLIFY=FALSE))
+  p <- unlist(mapply(runif,n=1,min=plower,max=pupper,SIMPLIFY=FALSE))
+  unlist(mapply(qnbinom,p=p,mu=mlag,size=mlag^2/(vlag-mlag),SIMPLIFY=FALSE))
+}
+
+# Using weibull distribution
+rlos2 <- function(
+  mu,
+  sigma,
+  lower=NULL,
+  upper=NULL
+){
+  n <- length(mu)
+  if(is.null(lower)){lower <- rep(0,n)}
+  if(is.null(upper)){upper <- rep(Inf,n)}
+  plower <- unlist(mapply(pweibull,q=lower,shape=1/sigma,scale=exp(mu),SIMPLIFY=FALSE))
+  pupper <- unlist(mapply(pweibull,q=upper,shape=1/sigma,scale=exp(mu),SIMPLIFY=FALSE))
+  p <- unlist(mapply(runif,n=1,min=plower,max=pupper,SIMPLIFY=FALSE))
+  floor(unlist(mapply(qweibull,p=p,shape=1/sigma,scale=exp(mu),SIMPLIFY=FALSE)))
+}
+
 
 # ------------------------------------------------------------------------------------------------------
 # Random sample for ICU length of stay (LOS)
@@ -58,18 +91,6 @@ rlos <- function(
   mlos, # expected value for length of stay (in days)
   vlos  # variability
 ){rnbinom(n,mu=mlos,size=mlos^2/(vlos-mlos))}
-
-plos<- function(
-  q,
-  mlos,
-  vlos
-){pnbinom(q,mu=mlos,size=mlos^2/(vlos-mlos))}
-
-qlos<- function(
-  p,
-  mlos,
-  vlos
-){qnbinom(p,mu=mlos,size=mlos^2/(vlos-mlos))}
 
 # ------------------------------------------------------------------------------------------------------
 # Generate dataframe with age and sex for fictive patients
@@ -86,9 +107,27 @@ rpop <- function(
   nT <- round(n*page); nT[ncat] <- n-sum(nT[1:(ncat-1)]) # nb patients in each age category
   nF <- round(nT*pfem)                                   # nb females in each age category
   nM <- nT-nF                                            # nb males in each age category
-  ageF <- as.numeric(unlist(mapply(runif,n=nF,min=breaks[1:ncat],max=breaks[2:(ncat+1)],SIMPLIFY=FALSE)))
-  ageM <- as.numeric(unlist(mapply(runif,n=nM,min=breaks[1:ncat],max=breaks[2:(ncat+1)],SIMPLIFY=FALSE)))
-  data.frame(age=c(ageM,ageF),sex=factor(c(rep("M",sum(nM)),rep("F",sum(nF))),levels=c("M","F")))
+  
+  # Uniform age within categories
+  ageF <- ceiling(as.numeric(unlist(mapply(runif,n=nF,min=breaks[1:ncat],max=breaks[2:(ncat+1)],SIMPLIFY=FALSE))))
+  ageM <- ceiling(as.numeric(unlist(mapply(runif,n=nM,min=breaks[1:ncat],max=breaks[2:(ncat+1)],SIMPLIFY=FALSE))))
+  age <- c(ageM,ageF)
+  sex <- factor(c(rep("M",sum(nM)),rep("F",sum(nF))),levels=c("M","F"))
+  
+  # # Resample age in data
+  # ipd <- attr(data,"ipd")
+  # ageM <- sample(ipd$age[ipd$sex=="M"],size=sum(nM),replace=TRUE)
+  # ageF <- sample(ipd$age[ipd$sex=="F"],size=sum(nF),replace=TRUE)
+  # age <- c(ageM,ageF)
+  # sex <- factor(c(rep("M",sum(nM)),rep("F",sum(nF))),levels=c("M","F"))
+  
+  # # Categorical age
+  # ageM <- as.character(unlist(mapply(rep,x=names(nM),times=nM,SIMPLIFY=FALSE)))
+  # ageF <- as.character(unlist(mapply(rep,x=names(nF),times=nF,SIMPLIFY=FALSE)))
+  # age <- factor(c(ageM,ageF),levels=names(page))
+  # sex <- factor(c(rep("M",sum(nM)),rep("F",sum(nF))),levels=c("M","F"))
+
+  data.frame(age=age,sex=sex)
 }
 
 # ------------------------------------------------------------------------------------------------------
@@ -120,41 +159,6 @@ histo <- function(x,prob=NULL){
     abline(h=0)
   }
 }
-
-pred.h <- function(
-  t,    # time (typically length of stay)
-  agecat, 
-  mu,
-  sigma
-){
-  t[t==0] <- 0.001
-  h <- numeric(length(t))
-  for(k in 1:max(agecat)){
-    pos <- which(agecat==k)
-    h[pos] <- exp((log(t[pos])-mu[k])/sigma[k])/(sigma[k]*t[pos])
-  }
-  h
-}
-
-sim.los <- function(
-  agecat, 
-  mu,
-  sigma,
-  left=NULL # left censoring
-){
-  n <- length(agecat)
-  if(is.null(left)){left <- rep(0,n)}
-  los <- integer(n)
-  for(k in 1:max(agecat)){
-    pos <- which(agecat==k)
-    pleft <- pweibull(left[pos],shape=1/sigma[k],scale=exp(mu[k]))
-    p <- sapply(pleft,runif,n=1,max=1)
-    los[pos] <- floor(qweibull(p,shape=1/sigma[k],scale=exp(mu[k])))
-  }
-  los
-}
-
-
 
 # ------------------------------------------------------------------------------------------------------
 # Plot function for object returned by pred.covid()
@@ -328,14 +332,14 @@ import.covid <- function(
 # ------------------------------------------------------------------------------------------------------
 # Load parameters and population characteristics
 pars.covid <- function(
-  input.file="params.xlsx",
+  input.file="params.xlsx",  # file with parameters and age/sex distributions
   date.format="%d.%m.%Y"     # date format
 ){
   require(readxl)
   
   # Load parameters
-  pars <- as.data.frame(read_xlsx(input.file,sheet="params"))
-  pars$date <- conv(pars$date,date.format)
+  params <- as.data.frame(read_xlsx(input.file,sheet="params"))
+  params$date <- conv(params$date,date.format)
   
   # Load age distribution
   age_dist <- as.data.frame(read_xlsx(input.file,sheet="age_distrib"))
@@ -349,72 +353,82 @@ pars.covid <- function(
   sex_dist <- as.data.frame(read_xlsx(input.file,sheet="sex_distrib"))
   sex_dist$date <- conv(sex_dist$date,date.format)
   
-  # # Define age categories
-  # agecat <- colnames(age_dist)[-1]
-  # lower <- sapply(strsplit(agecat,split="-"),function(x){min(as.numeric(x))})
-  # upper <- sapply(strsplit(agecat,split="-"),function(x){max(as.numeric(x))})
+  # Define breaks for age categories
+  agecat <- colnames(age_dist)[-1]
+  lower <- sapply(strsplit(agecat,split="-"),function(x){min(as.numeric(x))})
+  upper <- sapply(strsplit(agecat,split="-"),function(x){max(as.numeric(x))})
+  breaks <- c(lower[1],upper)
   
-  list(pars=pars,age_dist=age_dist,sex_dist=sex_dist)
+  list(params=params,age_dist=age_dist,sex_dist=sex_dist,age.breaks=breaks)
 }
 
 # ------------------------------------------------------------------------------------------------------
 # Forecast nb of ICU beds
 pred.covid <- function(
-  nday,      # nb of days to forecast
-  nsim,      # nb of simulations
-  pars,      # dataframe with parameters
-  pars_surv, # dataframe with parameters for survival models (no user interaction!)
-  pop,       # dataframe with 
-  data,      # dataframe with VD data
-  type=NULL, # type of mortality predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start with prediction interval on past
-  ncpu,      # nb of parallel processes (use 1 for serial compiutations)
-  seed=1234  # seed for reproducible computations
+  nday,       # nb of days to forecast
+  nsim,       # nb of simulations
+  pars,       # list with parameters and age/sex distributions (as returned by pars.covid)
+  data,       # dataframe with VD data (as returned by import.covid)
+  mort,       # list with formulas and coefficients for mortality models (usually retrived from load("mort.Rdata"))
+  type=NULL,  # type of mortality predictions. NULL=automatic (based on data), 1=use IPD, 2=simulate from start but replace with IPD for past, 3=simulate from start with prediction interval on past
+  ncpu=4,     # nb of parallel processes (use 1 for serial computations)
+  seed=1234,  # seed for reproducible computations
+  vcov=FALSE  # draw coefficients of mortality models in their sampling distribution (i.e. using the estimated variance-covariance matrix)
 ){
   t0 <- proc.time()
   set.seed(seed)
   
   # Check consistency of dates
-  if(min(pars$date)>min(data$date)){stop("First date defining parameters must be anterior or equal to first date in the data!")}
-  if(min(pop$date)>min(data$date)){stop("First date defining population must be anterior or equal to first date in the data!")}
+  if(min(pars$params$date)>min(data$date)){stop("First date defining parameters must be anterior or equal to first date in the data!")}
+  if(min(pars$age_dist$date)>min(data$date)){stop("First date defining proportion of patients in each age category must be anterior or equal to first date in the data!")}
+  if(min(pars$sex_dist$date)>min(data$date)){stop("First date defining proportion of females in each age category must be anterior or equal to first date in the data!")}
   
   # Some useful things
   today <- data$date[nrow(data)]       # today i.e. last date entered in data
   days <- c(data$date,today+c(1:nday)) # vector of days for observed data and predictions
   j <- which(days==today)              # index of today
   ipd <- attr(data,"ipd")              # extract individual patient data when available
-  
+  age.breaks <- pars$age.breaks        # breaks for age categories
+
   # Define prediction type (only applies to mortality!)
   allowed <- attr(data,"type")
   if(is.null(type)){type <- min(allowed)}
-  if(type<min(allowed)){stop("Chosen prediction type is incompatible with data")}
+  if(type<min(allowed)){stop("Chosen mortality prediction type is incompatible with data")}
   
   # Get parameters for each day in "days"
-  ind <- sapply(days,function(d){max(which(pars$date<=d))})
-  megp <- pars$megp[ind]
-  vegp <- pars$vegp[ind]
-  micp <- pars$micp[ind]
-  vicp <- pars$vicp[ind]
-  madp <- pars$madp[ind]
-  vadp <- pars$vadp[ind]
-  mlag <- pars$mlag[ind]
-  vlag <- pars$vlag[ind]
-  mlos <- pars$mlos[ind]
-  vlos <- pars$vlos[ind]
+  ind <- sapply(days,function(d){max(which(pars$params$date<=d))})
+  megp <- pars$params$megp[ind]
+  vegp <- pars$params$vegp[ind]
+  micp <- pars$params$micp[ind]
+  vicp <- pars$params$vicp[ind]
+  madp <- pars$params$madp[ind]
+  vadp <- pars$params$vadp[ind]
+  mlag <- pars$params$mlag[ind]
+  vlag <- pars$params$vlag[ind]
+  mlos <- pars$params$mlos[ind]
+  vlos <- pars$params$vlos[ind]
   
-  # Get population characteristics for each day in "days"
-  ind <- sapply(days,function(d){max(which(pop$date<=d))})
-  page <- pop[ind,2:4]
-  psex <- pop[ind,5:7]
+  # Get proportion of patients in each age category for each day in "days"
+  ind <- sapply(days,function(d){max(which(pars$age_dist$date<=d))})
+  page <- as.matrix(pars$age_dist[ind,-1])
   
-  # Get parameters for survival models
-  amin <- pars_surv$amin  
-  page <- pars_surv$prob  # proportion of patients in each age category
-  mu1 <- pars_surv$mu1
-  sig1 <- pars_surv$sig1
-  mu2 <- pars_surv$mu2
-  sig2 <- pars_surv$sig2
-  pfemale <- 0.4
+  # Get proportion of females in each age category for each day in "days"
+  ind <- sapply(days,function(d){max(which(pars$sex_dist$date<=d))})
+  pfem <- as.matrix(pars$sex_dist[ind,-1])
   
+  # Coefficients of mortality models
+  if(vcov){
+    # Draw coefficients from their sampling distributions
+    cf.icp <- MASS::mvrnorm(nsim,mort$icp$coef,mort$icp$vcov)
+    cf.dead <- MASS::mvrnorm(nsim,mort$dead$coef,mort$dead$vcov)
+    cf.exit <- MASS::mvrnorm(nsim,mort$exit$coef,mort$exit$vcov)
+  } else {
+    # Use point estimated in all simulations
+    cf.icp <- t(mort$icp$coef)[rep(1,nsim),]
+    cf.dead <- t(mort$dead$coef)[rep(1,nsim),]
+    cf.exit <- t(mort$exit$coef)[rep(1,nsim),]
+  }
+    
   # Fill-in observed cumulative count of hospitalized patients
   nhos <- matrix(nrow=nsim,ncol=j+nday)
   nhos[,1:j] <- t(data$nhos)[rep(1,nsim),]
@@ -477,53 +491,196 @@ pred.covid <- function(
       # Use individual patient data to reconstruct history
       future <- j+c(1:nday)
       Nfuture <- sum(npat[future])
-
-      agecat <- c(as.numeric(cut(ipd$age,breaks=c(amin,Inf),include.lowest=TRUE)),ragecat(Nfuture,page))
-      sex <- c(ipd$sex,rsex(Nfuture,pfemale))
-      hos.in <- c(ipd$hos_in,do.call("c",mapply(rep,x=days[future],times=npat[future],SIMPLIFY=FALSE)))
-      hos.out <- c(ipd$hos_out,rep(NA,Nfuture))
-      los <- as.numeric(hos.out-hos.in)
-      dead <- c(ipd$dead,rep(NA,Nfuture))
-
-      # Simulate LOS for existing patients that are still in hospital: LOS is censored tomorrow
-      sel <- which(hos.in<=today & is.na(hos.out))
+      
+      # Define known IC requirement status
+      pos0 <- which(is.na(ipd$icu_in) & !is.na(ipd$hos_out)) # existing patients who left hospital (alive or dead) without going through ICU => ic=0
+      pos1 <- which(!is.na(ipd$icu_in)) # existing patients who were admitted in ICU => ic=1
+      ipd$ic <- rep(NA,nrow(ipd))
+      ipd$ic[pos0] <- 0
+      ipd$ic[pos1] <- 1
+      
+      # Draw age and sex for future patients
+      new <- do.call("rbind",lapply(future,function(k){rpop(npat[k],breaks=age.breaks,page=page[k,],pfem=pfem[k,])}))
+      
+      # Rebuild complete data (with some missing values)
+      all <- data.frame(
+        age=c(ipd$age,new$age),
+        sex=unlist(list(ipd$sex,new$sex)),
+        ic=c(ipd$ic,rep(NA,Nfuture)),
+        hos.in=c(ipd$hos_in,do.call("c",mapply(rep,x=days[future],times=npat[future],SIMPLIFY=FALSE))),
+        icu.in=c(ipd$icu_in,rep(NA,Nfuture)),
+        lag=c(as.numeric(ipd$icu_in-ipd$hos_in),rep(NA,Nfuture)),
+        hos.out=c(ipd$hos_out,rep(NA,Nfuture)),
+        los=c(as.numeric(ipd$hos_out-ipd$hos_in),rep(NA,Nfuture)),
+        pdead=c(ipd$dead,rep(NA,Nfuture)),
+        dead=c(ipd$dead,rep(NA,Nfuture))
+      )
+      
+      # Impute missing IC status based on age/sex using ICP model
+      sel <- which(is.na(all$ic))
       if(length(sel)>0){
-        los[sel] <- sim.los(agecat[sel],mu2,sig2,left=as.numeric(today-hos.in[sel])+1)
-        hos.out[sel] <- hos.in[sel]+los[sel]
+        X <- model.matrix(xform(mort$icp$formula),all[sel,])
+        pic <- expit(as.numeric(X%*%cf.icp[s,]))
+        all$ic[sel] <- sapply(pic,rbinom,n=1,size=1)
+      }
+      
+      # Simulate hospital LOS for existing patients that are still in hospital: LOS is censored tomorrow
+      sel <- which(all$hos.in<=today & is.na(all$hos.out))
+      if(length(sel)>0){
+        X <- model.matrix(xform(mort$exit$formula),all[sel,])
+        mu <- as.numeric(X%*%cf.exit[s,-ncol(cf.exit)])
+        sigma <- exp(cf.exit[s,ncol(cf.exit)])
+        all$los[sel] <- rlos2(mu,sigma,lower=as.numeric(today-all$hos.in[sel])+1)
+        all$hos.out[sel] <- all$hos.in[sel]+all$los[sel]
       }
 
       # Simulate LOS for new patients
-      sel <- which(hos.in>today & is.na(hos.out))
+      sel <- which(all$hos.in>today & is.na(all$hos.out))
       if(length(sel)>0){
-        los[sel] <- sim.los(agecat[sel],mu2,sig2,left=NULL)
-        hos.out[sel] <- hos.in[sel]+los[sel]
+        X <- model.matrix(xform(mort$exit$formula),all[sel,])
+        mu <- as.numeric(X%*%cf.exit[s,-ncol(cf.exit)])
+        sigma <- exp(cf.exit[s,ncol(cf.exit)])
+        all$los[sel] <- rlos2(mu,sigma)
+        all$hos.out[sel] <- all$hos.in[sel]+all$los[sel]
+      }
+      
+      # Simulate lag for patients requiring IC (with condition lag<=LOS)
+      sel <- which(all$ic==1 & is.na(all$icu.in)); nsel <- length(sel)
+      if(nsel>0){
+        all$lag[sel] <- rlag2(mlag=rep(mort$lag$mlag,nsel),vlag=rep(mort$lag$vlag,nsel),upper=all$los[sel])
+        all$icu.in[sel] <- all$hos.in[sel]+all$lag[sel]
       }
 
-      # Calculate probability of death for patients without death status
-      sel <- which(is.na(dead))
+      # Calculate probability of death at the end of hospital stay for patients without death status
+      sel <- which(is.na(all$dead))
       if(length(sel)>0){
-        h1 <- pred.h(los[sel],agecat[sel],mu=mu1,sigma=sig1) # hazard of dying
-        h2 <- pred.h(los[sel],agecat[sel],mu=mu2,sigma=sig2) # hazard of exiting (dead or alive)
-        pdead <- h1/h2                                       # probability of dying at the end of LOS
-        dead[sel] <- sapply(pdead,rbinom,n=1,size=1)         # death indicator
+
+        # Predict hazard of death
+        X1 <- model.matrix(xform(mort$dead$formula),all[sel,])
+        mu.dead <- as.numeric(X1%*%cf.dead[s,-ncol(cf.dead)])
+        sigma.dead <- exp(cf.dead[s,ncol(cf.dead)])
+        h.dead <- pred.weibull(all$los[sel],mu.dead,sigma.dead,what="hazard")
+        
+        # Predict hazard of exit
+        X2 <- model.matrix(xform(mort$exit$formula),all[sel,])
+        mu.exit <- as.numeric(X2%*%cf.exit[s,-ncol(cf.exit)])
+        sigma.exit <- exp(cf.exit[s,ncol(cf.exit)])
+        h.exit <- pred.weibull(all$los[sel],mu.exit,sigma.exit,what="hazard")
+        
+        # Calculate probability of dying at the end of hospital stay (forced<=1)
+        all$pdead[sel] <- pmin(h.dead/h.exit,1)
       }
+      
+      # Restrict ICU admission
+      adp <- unlist(mapply(radp,n=1,madp=madp,vadp=vadp,SIMPLIFY=FALSE)) # simulated admission probability on each day
+      restrict <- which(adp<1) # index of days for which a restriction on ICU admission should be applied
+      if(length(restrict)>0){
+        for(k in restrict){
+          sel <- which(all$icu.in==days[k]); nsel <- length(sel) # select patients that are supposed to enter ICU on day k
+          if(nsel>0){
+            refused <- rbinom(nsel,size=1,prob=1-adp[k])            # patient-specific binary indicator for effective ICU refusal on day k
+
+            # nref <- round(nsel*(1-adp[k]))
+            # refused <- rep(0,nsel)
+            # refused[sample(c(1:nsel),size=nref)] <- 1
+  
+            
+            # # Predict hazard of death on day k
+            # X1 <- model.matrix(xform(mort$dead$formula),all[sel,,drop=FALSE])
+            # mu.dead <- as.numeric(X1%*%cf.dead[s,-ncol(cf.dead)])
+            # sigma.dead <- exp(cf.dead[s,ncol(cf.dead)])
+            # h.dead <- pred.weibull(all$lag[sel],mu.dead,sigma.dead,what="hazard")
+            # 
+            # # Predict hazard of exit on day k
+            # X2 <- model.matrix(xform(mort$exit$formula),all[sel,,drop=FALSE])
+            # mu.exit <- as.numeric(X2%*%cf.exit[s,-ncol(cf.exit)])
+            # sigma.exit <- exp(cf.exit[s,ncol(cf.exit)])
+            # h.exit <- pred.weibull(all$lag[sel],mu.exit,sigma.exit,what="hazard")
+            # 
+            # # Calculate probability of dying on day k
+            # pdead <- pmin(h.dead/h.exit,1)
+
+            sel.refused <- sel[refused==1]                        # among patients requiring IC on day k, select those that will be refused
+            all$hos.out[sel.refused] <- all$icu.in[sel.refused]   # set date of hospital exit on the theoretical date of ICU admission
+            all$los[sel.refused] <- all$lag[sel.refused] #as.numeric(all$hos.out[sel.refused]-all$hos.in[sel.refused]) # correct LOS
+            all$pdead[sel.refused] <- 1                           # set probability of dying to 1 for patients refused in ICU
+          }
+        }
+      }
+      
+      # Generate death indicator
+      sel <- which(is.na(all$dead))
+      all$dead[sel] <- sapply(all$pdead[sel],rbinom,n=1,size=1)
     } else {
       # Simulate fictive deaths from start of epidemy
       N <- sum(npat)
-      agecat <- ragecat(N,page)
-      sex <- rsex(N,pfemale)
       pos <- which(npat>0) # only consider days with new hospitalized patients
-      hos.in <- do.call("c",mapply(rep,x=days[pos],times=npat[pos],SIMPLIFY=FALSE))
-      los <- sim.los(agecat,mu2,sig2)
-      hos.out <- hos.in+los
-      h1 <- pred.h(los,agecat,mu1,sig1)       # hazard of dying
-      h2 <- pred.h(los,agecat,mu2,sig2)       # hazard of exiting (dead or alive)
-      pdead <- h1/h2                          # probability of dying at the end of LOS
-      dead <- sapply(pdead,rbinom,n=1,size=1) # death indicator
+      
+      # Generate age and sex
+      all <- do.call("rbind",lapply(pos,function(k){rpop(npat[k],breaks=age.breaks,page=page[k,],pfem=pfem[k,])}))
+
+      # Draw IC status using ICP model
+      X <- model.matrix(xform(mort$icp$formula),all)
+      pic <- expit(as.numeric(X%*%cf.icp[s,]))
+      all$ic <- sapply(pic,rbinom,n=1,size=1)
+      
+      # Define hospital entrance
+      all$hos.in <- do.call("c",mapply(rep,x=days[pos],times=npat[pos],SIMPLIFY=FALSE))
+      
+      # Draw total LOS
+      X <- model.matrix(xform(mort$exit$formula),all)
+      mu <- as.numeric(X%*%cf.exit[s,-ncol(cf.exit)])
+      sigma <- exp(cf.exit[s,ncol(cf.exit)])
+      all$los <- rlos2(mu,sigma)
+      all$hos.out <- all$hos.in+all$los
+      
+      # Simulate lag for patients requiring IC (with condition lag<=LOS)
+      all$icu.in <- as.Date(rep(NA,nrow(all)))
+      all$lag <- rep(NA,nrow(all))
+      sel <- which(all$ic==1); nsel <- length(sel)
+      if(nsel>0){
+        all$lag[sel] <- rlag2(mlag=rep(mort$lag$mlag,nsel),vlag=rep(mort$lag$vlag,nsel),upper=all$los[sel])
+        all$icu.in[sel] <- all$hos.in[sel]+all$lag[sel]
+      }
+
+      # Predict hazard of death
+      X1 <- model.matrix(xform(mort$dead$formula),all)
+      mu.dead <- as.numeric(X1%*%cf.dead[s,-ncol(cf.dead)])
+      sigma.dead <- exp(cf.dead[s,ncol(cf.dead)])
+      h.dead <- pred.weibull(all$los,mu.dead,sigma.dead,what="hazard")
+      
+      # Predict hazard of exit
+      X2 <- model.matrix(xform(mort$exit$formula),all)
+      mu.exit <- as.numeric(X2%*%cf.exit[s,-ncol(cf.exit)])
+      sigma.exit <- exp(cf.exit[s,ncol(cf.exit)])
+      h.exit <- pred.weibull(all$los,mu.exit,sigma.exit,what="hazard")
+      
+      # Calculate probability of dying at the end of hospital stay (forced<=1)
+      all$pdead <- pmin(h.dead/h.exit,1)
+      
+      # Restrict ICU admission
+      adp <- unlist(mapply(radp,n=1,madp=madp,vadp=vadp,SIMPLIFY=FALSE)) # simulated admission probability on each day
+      restrict <- which(adp<1) # index of days for which a restriction on ICU admission should be applied
+      if(length(restrict)>0){
+        for(k in restrict){
+          sel <- which(all$icu.in==days[k]); nsel <- length(sel) # select patients that are supposed to enter ICU on day k
+          if(nsel>0){
+            refused <- rbinom(nsel,size=1,prob=1-adp[k])            # patient-specific binary indicator for effective ICU refusal on day k
+            
+            sel.refused <- sel[refused==1]                        # select patients which are refused in ICU
+            all$hos.out[sel.refused] <- all$icu.in[sel.refused] # set date of hospital exit on the theoretical date of ICU admission
+            all$los[sel.refused] <- all$lag[sel.refused] # correct LOS
+            all$pdead[sel.refused] <- 1                         # set probability of dying to 1 for patients refused in ICU
+          }
+        }
+      }
+      
+      # Generate death indicator
+      all$dead <- sapply(all$pdead,rbinom,n=1,size=1)
     }
     
     # Calculate daily nb of deaths
-    ndead <- sapply(days,function(dd){sum(dead[hos.out==dd])})
+    ndead <- sapply(days,function(dd){sum(all$dead[all$hos.out==dd])})
 
     # In absence of IPD, replace historic simulated death counts with observed death counts when available (crude fix)
     if(type==2){ndead[1:j] <- data$ndead}
@@ -641,56 +798,6 @@ fit.wb <- function(
   list(shape=exp(opt$par[1]),scale=exp(opt$par[2]),loglik=opt$value)
 }
 
-pbccg <- function(q,mu,sigma,lambda){
-  if(lambda==0){
-    zt <- log(q/mu)/sigma
-  } else {
-    zt <- ((q/mu)^lambda-1)/(lambda*sigma)
-  }
-  ptr <- pnorm(-1/(sigma*abs(lambda))) # truncation probability
-  p <- if(lambda<=0){pnorm(z)/(1-ptr)}else{(pnorm(z)-ptr)/(1-ptr)}
-  p
-}
-
-qbccg <- function(p,mu,sigma,lambda){
-  zp <- qnorm(p)
-  ptr <- pnorm(-1/(sigma*abs(lambda))) # truncation probability
-  zt <- if(lambda<=0){qnorm(p*(1-ptr))}else{qnorm(p*(1-ptr)+ptr)}
-  if(lambda==0){
-    q <- mu*exp(zt*sigma)
-  } else {
-    q <- mu*abs(1+zt*lambda*sigma)^(1/lambda)
-  }
-  q
-}
-
-fit.bccg <- function(
-  x,
-  cens=NULL
-){
-  if(is.null(cens)){cens <- rep(0,length(x))}
-  bccg.llik <- function(pars,x,cens){
-    mu <- exp(pars[1])
-    sig <- exp(pars[2])
-    lam <- pars[3]
-    z <- x2z(x,mu,sig,lam)
-    ljac <- -log(mu)-log(sig)+(lam-1)*(log(x)-log(mu))
-    ll <- x*0
-    obs <- which(cens==0)
-    cns <- which(cens==1)
-    if(length(obs)>0){ll[obs] <- dnorm(z[obs],log=TRUE)+ljac[obs]}
-    if(length(cns)>0){ll[cns] <- pnorm(z[cns],lower.tail=FALSE,log.p=TRUE)}
-    sum(ll)
-  }
-  ini <- c(log(median(x)),log(sd(log(x))),0)
-  opt <- optim(par=ini,fn=bccg.llik,x=x,cens=cens,method="BFGS",control=list(fnscale=-1,maxit=1000))
-  mu <- exp(opt$par[1])
-  sigma <- exp(opt$par[2])
-  lambda <- opt$par[3]
-  list(mu=mu,sigma=sigma,lambda=lambda,loglik=opt$value)
-}
-
-
 # -----------------------------------------------------------------------------
 # Design matrix for fractional polynomials
 # see  https://www.jstor.org/stable/2986270
@@ -773,18 +880,12 @@ xform <- function(formula){
 # -----------------------------------------------------------------------------
 # Predict survival and hazard from a Weibull fit
 pred.weibull <- function(
-  formula,
-  newdata,
-  coef,
+  t,
+  mu,
+  sigma,
   what="survival"
 ){
-  frm <- model.frame(formula,newdata)
-  t <- model.response(frm)
-  X <- model.matrix(formula,frm)
-  nX <- ncol(X)
-  beta <- coef[1:nX]
-  sigma <- exp(coef[nX+1])
-  mu <- as.numeric(X%*%beta)
+  t[t==0] <- 0.001
   if(what=="survival"){output <- exp(-exp((log(t)-mu)/sigma))}
   #if(what=="survival"){output <- 1-pweibull(t,shape=1/sigma,scale=exp(mu))}
   if(what=="hazard"){output <- exp((log(t)-mu)/sigma)/(sigma*t)}
