@@ -37,14 +37,6 @@ agecat <- cut(age,breaks=age.breaks,include.lowest=TRUE)
 page <- round(table(agecat)/nrow(raw),3); page[ncat] <- 1-sum(page[1:(ncat-1)])
 pfem <- round(table(agecat[sex=="F"])/table(agecat),3)
 
-# Plot histogram of age distribution for each sex
-pop <- rpop(n=1e06,breaks=age.breaks,page,pfem)
-# xM <- pop$age[pop$sex=="M"]; attr(xM,"breaks") <- age.breaks
-# xF <- pop$age[pop$sex=="F"]; attr(xF,"breaks") <- age.breaks
-# par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
-# histo(xM); title("Males")
-# histo(xF); title("Females")
-
 ###############################################################################
 # MODEL PROPORTION OF PATIENTS REQUIRING IC (BY AGE AND SEX)
 pos0 <- which(is.na(icu_in) & !is.na(hos_out)) # did not require IC and left hospital

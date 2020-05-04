@@ -51,7 +51,7 @@ load("mort.Rdata")
 
 ui <- shinyUI(fluidPage(
 
-  titlePanel("Estimated number of beds needed in intensive care"),
+  titlePanel("ICU beds and mortality projection at hospitals VD during COVID-19"),
 
   mainPanel(
 
@@ -200,11 +200,11 @@ ui <- shinyUI(fluidPage(
 
 # ------------------- ADDITIONAL PARMETERS FOR MORTALITY -------------------- #
 
-      tabPanel("Parameters for mortality",
+      tabPanel("Demography",
 
         fluidPage(
 
-          h3("Additional parameters for mortality",
+          h3("Demography (only applies to mortality projections)",
             span(icon("question-circle"), id = "pars_pop_info"),
             tippy_this(
               elementId = "pars_pop_info",
@@ -255,7 +255,7 @@ ui <- shinyUI(fluidPage(
 
 # -------------------------------- FORECASTS -------------------------------- #
 
-      tabPanel("Forecasts",
+      tabPanel("Projections",
 
         fluidPage(
 
@@ -283,7 +283,7 @@ ui <- shinyUI(fluidPage(
 
             column(3,
 
-              strong("Compute forecasts"),
+              strong("Compute projections"),
 
               br(),
 
@@ -315,7 +315,7 @@ ui <- shinyUI(fluidPage(
 
             column(3,
 
-              strong("Download forecasts"),
+              strong("Download projections"),
 
               br(),
 
@@ -795,7 +795,7 @@ server <- function(input, output, session) {
     d <- input$sdate_pop
     i_age <- max(which(age()$date %>% {!is.na(.) & . <= d}))
     i_sex <- max(which(sex()$date %>% {!is.na(.) & . <= d}))
-    age.breaks <- seq(0,105,by=15)
+    age.breaks <- pars0$age.breaks
     pop <- rpop(1e06, age.breaks, age()[i_age, -1], sex()[i_sex, -1])
     validate(need(pop, ""))
     xM <- pop$age[pop$sex == "M"]
@@ -803,9 +803,9 @@ server <- function(input, output, session) {
     xF <- pop$age[pop$sex == "F"]
     attr(xF, "breaks") <- age.breaks
     old.par <- par(mfrow=c(1, 2), mar=c(3, 3, 2, 0.5), mgp=c(1.8, 0.6, 0))
-    histo(xM)
+    histo(xM,ylim=c(0,1))
     title("Males")
-    histo(xF)
+    histo(xF,ylim=c(0,1))
     title("Females")
     par(old.par)
 

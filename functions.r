@@ -67,6 +67,14 @@ rlag2 <- function(
   unlist(mapply(qnbinom,p=p,mu=mlag,size=mlag^2/(vlag-mlag),SIMPLIFY=FALSE))
 }
 
+# ------------------------------------------------------------------------------------------------------
+# Random sample for ICU length of stay (LOS)
+rlos <- function(
+  n,    # nb draws
+  mlos, # expected value for length of stay (in days)
+  vlos  # variability
+){rnbinom(n,mu=mlos,size=mlos^2/(vlos-mlos))}
+
 # Using weibull distribution
 rlos2 <- function(
   mu,
@@ -82,15 +90,6 @@ rlos2 <- function(
   p <- unlist(mapply(runif,n=1,min=plower,max=pupper,SIMPLIFY=FALSE))
   floor(unlist(mapply(qweibull,p=p,shape=1/sigma,scale=exp(mu),SIMPLIFY=FALSE)))
 }
-
-
-# ------------------------------------------------------------------------------------------------------
-# Random sample for ICU length of stay (LOS)
-rlos <- function(
-  n,    # nb draws
-  mlos, # expected value for length of stay (in days)
-  vlos  # variability
-){rnbinom(n,mu=mlos,size=mlos^2/(vlos-mlos))}
 
 # ------------------------------------------------------------------------------------------------------
 # Generate dataframe with age and sex for fictive patients
@@ -136,14 +135,16 @@ rgb.blue <- t(col2rgb("#428bca"))/255
 
 # ------------------------------------------------------------------------------------------------------
 # Histogram
-histo <- function(x,prob=NULL){
+histo <- function(x,prob=NULL,ylim=NULL){
   if(var(x)>0){
     brks <- attr(x,"breaks")
     if(is.null(brks)){
-      hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE)
+      hist(x,breaks=30,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",yaxs="i",freq=FALSE,ylim=ylim)
     } else {
-      hist(x,breaks=brks,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),xaxt="n",yaxt="n",yaxs="i",freq=FALSE)
-      axis(side=1,at=brks)
+      # hist(x,breaks=brks,xlab="",ylab="",main="",col=rgb(rgb.blue,alpha=0.5),xaxt="n",yaxt="n",yaxs="i",freq=FALSE)
+      # axis(side=1,at=brks)
+      xcat <- cut(x,breaks=brks,include.lowest=T)
+      barplot(table(xcat)/length(x),ylab="",col=rgb(rgb.blue,alpha=0.5),yaxt="n",ylim=ylim)
     }
     if(!is.null(prob)){
       stopifnot(length(prob)==3)
@@ -663,14 +664,14 @@ pred.covid <- function(
       restrict <- which(adp<1) # index of days for which a restriction on ICU admission should be applied
       if(length(restrict)>0){
         for(k in restrict){
-          sel <- which(all$icu.in==days[k]); nsel <- length(sel) # select patients that are supposed to enter ICU on day k
+          sel <- which(all$icu.in==days[k]); nsel <- length(sel)  # select patients that are supposed to enter ICU on day k
           if(nsel>0){
-            refused <- rbinom(nsel,size=1,prob=1-adp[k])            # patient-specific binary indicator for effective ICU refusal on day k
+            refused <- rbinom(nsel,size=1,prob=1-adp[k])          # patient-specific binary indicator for effective ICU refusal on day k
             
             sel.refused <- sel[refused==1]                        # select patients which are refused in ICU
-            all$hos.out[sel.refused] <- all$icu.in[sel.refused] # set date of hospital exit on the theoretical date of ICU admission
-            all$los[sel.refused] <- all$lag[sel.refused] # correct LOS
-            all$pdead[sel.refused] <- 1                         # set probability of dying to 1 for patients refused in ICU
+            all$hos.out[sel.refused] <- all$icu.in[sel.refused]   # set date of hospital exit on the theoretical date of ICU admission
+            all$los[sel.refused] <- all$lag[sel.refused]          # correct LOS
+            all$pdead[sel.refused] <- 1                           # set probability of dying to 1 for patients refused in ICU
           }
         }
       }
