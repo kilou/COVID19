@@ -7,20 +7,23 @@ source("functions.r")
 
 # Load data and parameters
 data <- import.covid(
-  input.file="data/20.04.14 - Données REDCap hôpitaux anonymisés.xlsx",
+  input.file="data/20.04.17 - Données REDCap hôpitaux anonymisés.xlsx",
   #input.file="data/data_14042020.xlsx",
   start.date=NA,
-  end.date="04/13/2020",
+  end.date="04/16/2020",
   date.format="%m/%d/%Y"
 )
 #writexl::write_xlsx(data,path="data/data_14042020.xlsx")
-
-pars <- as.data.frame(readxl::read_xlsx("params.xlsx"))
-pars$date <- conv(pars$date)
 today <- data$date[nrow(data)]
 
-# Load parameters for survival models
-pars_surv <- as.data.frame(readxl::read_xlsx("params_surv.xlsx"))
+# Load parameters and age/sex distribution
+pars <- pars.covid(
+  input.file="params.xlsx",
+  date.format="%d.%m.%Y"
+)
+
+# Load 'mort' object with formulas and coefficients for mortality models
+load("mort.Rdata")
 
 # ------------------------------------------------------------------------------------------------------
 # VISUALIZE PRIOR DISTRIBUTIONS                        
@@ -58,11 +61,24 @@ vlos <- 154  # variability. vlos must be >=mlos with vlos=mlos corresponding to 
 los <- rlos(1e06,mlos,vlos)
 histo(los,p)
 
+# Plot age distribution for each sex
+page <- pars$age_dist[1,-1]
+pfem <- pars$sex_dist[1,-1]
+age.breaks <- pars$age.breaks
+pop <- rpop(1e06,age.breaks,page,pfem)
+x <- pop$age; attr(x,"breaks") <- age.breaks
+xM <- pop$age[pop$sex=="M"]; attr(xM,"breaks") <- age.breaks
+xF <- pop$age[pop$sex=="F"]; attr(xF,"breaks") <- age.breaks
+par(mfrow=c(1,3),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
+histo(x); title("All")
+histo(xM); title("Males")
+histo(xF); title("Females")
+
 # ------------------------------------------------------------------------------------------------------
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=60,nsim=2000,pars,pars_surv,data,type=NULL,ncpu=4)
+pred <- pred.covid(nday=50,nsim=2000,pars,data,mort,type=1,ncpu=4,vcov=F)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p,from="02/25/2020",date.format="%m/%d/%Y")
