@@ -30,6 +30,5 @@ unzip(zipfile = './covid_app.zip',overwrite = T)
 #seting the working directory to the correct folder: (needed because app.r sources at the current wd)
 
 setwd("./COVID19-master")
-source("app.R")
-setwd('../')
-shinyApp(ui, server)
+source("functions.r")
+shiny::runApp("app.R")

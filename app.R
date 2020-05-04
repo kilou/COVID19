@@ -25,13 +25,21 @@ options(stringsAsFactors = FALSE)
 source("functions.r")
 
 # Load known parameters
-pars0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "params"))
-pars0$date <- conv(pars0$date, format = "%d.%m.%Y")
-age0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "age_distrib"))
-age0$date <- conv(age0$date, format = "%d.%m.%Y")
-sex0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "sex_distrib"))
-sex0$date <- conv(sex0$date, format = "%d.%m.%Y")
-pars_surv <- as.data.frame(read_xlsx("params_surv.xlsx"))
+pars0 <- pars.covid(
+  input.file="params.xlsx",
+  date.format="%d.%m.%Y"
+)
+
+# Load 'mort' object with formulas and coefficients for mortality models
+load("mort.Rdata")
+
+# pars0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "params"))
+# pars0$date <- conv(pars0$date, format = "%d.%m.%Y")
+# age0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "age_distrib"))
+# age0$date <- conv(age0$date, format = "%d.%m.%Y")
+# sex0 <- as.data.frame(read_xlsx("params.xlsx", sheet = "sex_distrib"))
+# sex0$date <- conv(sex0$date, format = "%d.%m.%Y")
+# pars_surv <- as.data.frame(read_xlsx("params_surv.xlsx"))
 
 
 # =========================================================================== #
@@ -539,7 +547,7 @@ server <- function(input, output, session) {
   pars <- reactive({
 
     if (is.null(input$pars_tbl)) {
-      DF = pars0
+      DF = pars0$params
     } else {
       DF = hot_to_r(input$pars_tbl)
       DF$date <- as.Date(DF$date, format = "%Y-%m-%d")
@@ -634,7 +642,7 @@ server <- function(input, output, session) {
 
   })
 
-  rv$sdate <- min(pars0$date)
+  rv$sdate <- min(pars0$params$date)
 
   output$sdate_ui <- renderUI({
 
@@ -689,7 +697,7 @@ server <- function(input, output, session) {
   age <- reactive({
 
     if (is.null(input$age_tbl)) {
-      DF = age0
+      DF = pars0$age_dist
     } else {
       DF = hot_to_r(input$age_tbl)
       DF$date <- as.Date(DF$date, format = "%Y-%m-%d")
@@ -736,7 +744,7 @@ server <- function(input, output, session) {
   sex <- reactive({
 
     if (is.null(input$sex_tbl)) {
-      DF = sex0
+      DF = pars0$sex_dist
     } else {
       DF = hot_to_r(input$sex_tbl)
       DF$date <- as.Date(DF$date, format = "%Y-%m-%d")
@@ -762,7 +770,7 @@ server <- function(input, output, session) {
 
   }) %>% debounce(1000)
 
-  rv$sdate_pop <- min(c(age0$date, sex0$date))
+  rv$sdate_pop <- min(c(pars0$age_dist$date, pars0$sex_dist$date))
 
   output$sdate_pop_ui <- renderUI({
 
@@ -923,12 +931,12 @@ server <- function(input, output, session) {
     rv$pred <- pred.covid(
       nday = nday(),
       nsim = 1000,
-      pars = pars(),
-      pars_surv =pars_surv,
-      pop = NULL,
+      pars = list(params=pars(),age_dist=age(),sex_dist=sex(),age.breaks=pars0$age.breaks),
       data = data_p(),
+      mort = mort,
       type = input$sim_type,
-      ncpu = 8
+      ncpu = 8,
+      vcov = FALSE
     )
 
     rv$days <- as.Date(strptime(colnames(rv$pred$nbed), format = "%d.%m.%Y"))

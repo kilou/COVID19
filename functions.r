@@ -233,7 +233,7 @@ plot.covid <- function(
   abline(v=xdat,col="grey",lwd=1)
   mtext(ylb,side=2,line=2.8)
   title(tit)
-  polygon(x=c(days[past],rev(days[past])),y=c(Q[past,1],rev(Q[past,3])),col="lightgrey",border=NA)
+  polygon(x=c(days[past],rev(days[past])),y=c(Q[past,1],rev(Q[past,3])),col=rgb(t(col2rgb("lightgrey"))/255,alpha=0.5),border=NA)
   lines(days[past],Q[past,2],lwd=2,col="darkgrey")
   polygon(x=c(days[futur],rev(days[futur])),y=c(Q[futur,1],rev(Q[futur,3])),col=rgb(rgb.blue,alpha=0.5),border=NA)
   lines(days[futur],Q[futur,2],lwd=2,col="red")
