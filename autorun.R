@@ -32,3 +32,4 @@ unzip(zipfile = './covid_app.zip',overwrite = T)
 setwd("./COVID19-master")
 source("functions.r")
 shiny::runApp("app.R")
+setwd("../") #To not recursively create subfolder in case of multiple execution.
