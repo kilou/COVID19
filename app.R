@@ -51,7 +51,8 @@ load("mort.Rdata")
 
 ui <- shinyUI(fluidPage(
 
-  titlePanel("ICU beds and mortality projection at hospitals VD during COVID-19"),
+  titlePanel(paste("ICU beds and mortality projection at hospitals VD",
+                   "during COVID-19")),
 
   mainPanel(
 
@@ -221,13 +222,13 @@ ui <- shinyUI(fluidPage(
 
           h4("Age distribution"),
 
-          rHandsontableOutput("age_tbl"),
+          rHandsontableOutput("age_tbl", width = 600),
 
           br(),
 
           h4("Female proportion per age class"),
 
-          rHandsontableOutput("sex_tbl"),
+          rHandsontableOutput("sex_tbl", width = 600),
 
           br(),
 
@@ -802,10 +803,10 @@ server <- function(input, output, session) {
     attr(xM, "breaks") <- age.breaks
     xF <- pop$age[pop$sex == "F"]
     attr(xF, "breaks") <- age.breaks
-    old.par <- par(mfrow=c(1, 2), mar=c(3, 3, 2, 0.5), mgp=c(1.8, 0.6, 0))
-    histo(xM,ylim=c(0,1))
+    old.par <- par(mfrow = 1:2, mar = c(3, 3, 2, 0.5), mgp = c(1.8, 0.6, 0))
+    histo(xM, ylim=c(0, 1))
     title("Males")
-    histo(xF,ylim=c(0,1))
+    histo(xF, ylim=c(0, 1))
     title("Females")
     par(old.par)
 
@@ -931,7 +932,8 @@ server <- function(input, output, session) {
     rv$pred <- pred.covid(
       nday = nday(),
       nsim = 1000,
-      pars = list(params=pars(),age_dist=age(),sex_dist=sex(),age.breaks=pars0$age.breaks),
+      pars = list(params = pars(), age_dist = age(), sex_dist = sex(),
+                  age.breaks = pars0$age.breaks),
       data = data_p(),
       mort = mort,
       type = input$sim_type,
