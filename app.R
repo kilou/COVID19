@@ -1087,11 +1087,13 @@ server <- function(input, output, session) {
                     as.data.frame(ndead, check.names = FALSE))
 
       r <- list(nhos = nhos, nbed = nbed, ndead = ndead,
-                pars = pars(), data = data_p())
+                pars = pars(), age_dist = age(), sex_dist = sex(),
+                data = data_p())
 
     } else {
 
-      r <- list(nhos = nhos, nbed = nbed, pars = pars(), data = data_p())
+      r <- list(nhos = nhos, nbed = nbed, pars = pars(), age_dist = age(),
+                sex_dist = sex(), data = data_p())
 
     }
 
