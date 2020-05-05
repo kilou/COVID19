@@ -1,5 +1,9 @@
 # COVID19
-COVID19 ICU beds forecasts
+COVID19 ICU beds & mortality forecasts
+It is a shiny app that depends on the R Packages: 
+dplyr, ggplot2, plotly, readxl, rhandsontable, shiny, shinybusy, snowfall, tippy, writexl 
+
+To run the app locally, you can run the Rscript autorun.R
 
 ## Interesting links
 
