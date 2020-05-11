@@ -1,12 +1,3 @@
----
-title: ''
-author: "Bastien Trächsel"
-date: "4/22/2020"
-output:
-  pdf_document: default
-  html_document: default
----
-
 ### Virtual machine/server configuration
 
 ## Base configuration:
