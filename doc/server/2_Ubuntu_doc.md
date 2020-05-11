@@ -1,4 +1,4 @@
-### Virtual machine/server configuration
+### Virtual machine/server configuration (Ubuntu 20.04)
 
 ## Base configuration:
 I would advise switching to your favorite ubuntu source for updates.
