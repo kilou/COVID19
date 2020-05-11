@@ -1,11 +1,3 @@
----
-title: "Doc Windows & système"
-author: "Bastien Trächsel"
-date: "4/22/2020"
-output:
-  pdf_document: default
-  html_document: default
----
 
 ### Bios setup (to allow virtual machine)
 
