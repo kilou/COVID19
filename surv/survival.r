@@ -20,7 +20,7 @@ hos_out <- as.Date(raw[,"sortie_hopital"],"%Y/%m/%d")
 dead <- raw[,"deces"]
 exit <- (!is.na(hos_out))*1
 
-# Calculate lag
+# Calculate lag (only for those that go to ICU)
 lag <- as.numeric(icu_in-hos_in)
 fit.lag <- fit.nb(lag)
 
@@ -31,7 +31,7 @@ los[cens==1] <- as.numeric(max(hos_in,na.rm=T)-hos_in[cens==1])
 los[los==0] <- 0.001 # to avoid issues with los=0
 
 # Distribution of age categories and proportion of females in each age category
-age.breaks <- c(0,64,74,104)
+age.breaks <- c(0,70,85,120)
 ncat <- length(age.breaks)-1
 agecat <- cut(age,breaks=age.breaks,include.lowest=TRUE)
 page <- round(table(agecat)/nrow(raw),3); page[ncat] <- 1-sum(page[1:(ncat-1)])
@@ -49,16 +49,16 @@ ic[pos0] <- 0
 ic[pos1] <- 1
 
 # Initial model
-fm20 <- glm(ic~cut(age,breaks=c(0,64,74,104),include.lowest=T)+sex,family="binomial"); aic(fm20)
-fm21 <- glm(ic~cut(age,breaks=c(0,64,74,104),include.lowest=T)*sex,family="binomial"); aic(fm21)
+fm20 <- glm(ic~cut(age,breaks=c(0,70,85,120),include.lowest=T)+sex,family="binomial"); aic(fm20)
+fm21 <- glm(ic~cut(age,breaks=c(0,70,85,120),include.lowest=T)*sex,family="binomial"); aic(fm21)
 summary(fm20)
 
 # Best icp model
 #******************************************************
-formula.icp <- ic~cut(age,breaks=c(0,64,74,104),include.lowest=T)+sex
+formula.icp <- ic~cut(age,breaks=c(0,70,85,120),include.lowest=T)+sex
 #******************************************************
 col.icp <- c("green","orange","red")
-mid.icp <- tapply(age,cut(age,breaks=c(0,64,74,104),include.lowest=T),mean)
+mid.icp <- tapply(age,cut(age,breaks=c(0,70,85,120),include.lowest=T),mean)
 
 # Fit icp model
 fm.icp <- glm(formula.icp,family="binomial")
@@ -85,11 +85,11 @@ polygon(x=c(agepred,rev(agepred)),y=c(icpM[,1],rev(icpM[,3])),border=NA,col=rgb(
 polygon(x=c(agepred,rev(agepred)),y=c(icpF[,1],rev(icpF[,3])),border=NA,col=rgb(t(col2rgb("red"))/255,alpha=0.3))
 lines(agepred,icpM[,2],col="blue",lwd=2)
 lines(agepred,icpF[,2],col="red",lwd=2)
-legend("topleft",c("Males","Females"),col=c("blue","red"),lwd=2,bty="n")
+legend("bottomleft",c("Males","Females"),col=c("blue","red"),lwd=2,bty="n")
 dev.off()
 
 # Create imputed datasets with IC status
-M <- 20
+M <- 50
 X <- model.matrix(xform(formula.icp),data.frame(age=age,sex=sex))
 beta.sim <- MASS::mvrnorm(M,coef.icp,V.icp)
 imp <- rep(list(data.frame(age=age,sex=sex,ic=ic,los=los,exit=exit,dead=dead)),M)
@@ -112,10 +112,10 @@ mean(!is.na(icu_in[sex=="F"]))
 # TIME TO DEATH MODEL
 
 # Base model
-fm30 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,64,74,104),include.lowest=T)+ic+sex,data=imp[[1]],dist="weibull"); aic(fm30)
-fm31 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,64,74,104),include.lowest=T)*ic+sex,data=imp[[1]],dist="weibull"); aic(fm31)
-fm32 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,64,74,104),include.lowest=T)*ic*sex,data=imp[[1]],dist="weibull"); aic(fm32)
-fm33 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,64,74,104),include.lowest=T),data=imp[[1]],dist="weibull"); aic(fm33)
+fm30 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,70,85,120),include.lowest=T)+ic+sex,data=imp[[1]],dist="weibull"); aic(fm30)
+fm31 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,70,85,120),include.lowest=T)*ic+sex,data=imp[[1]],dist="weibull"); aic(fm31)
+fm32 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,70,85,120),include.lowest=T)*ic*sex,data=imp[[1]],dist="weibull"); aic(fm32)
+fm33 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,70,85,120),include.lowest=T),data=imp[[1]],dist="weibull"); aic(fm33)
 
 # # Test interaction age*ic using degree 2 FP
 # best.FP(fm10,xform=~age,degree=2)$power
@@ -131,10 +131,10 @@ fm33 <- survreg(Surv(los,dead)~cut(age,breaks=c(0,64,74,104),include.lowest=T),d
 
 # Best death model
 #****************************************
-formula.dead <- Surv(los,dead)~cut(age,breaks=c(0,64,74,104),include.lowest=T)
+formula.dead <- Surv(los,dead)~cut(age,breaks=c(0,70,85,120),include.lowest=T)+ic+sex
 #****************************************
 col.dead <- c("green","orange","red")
-mid.dead <- tapply(age,cut(age,breaks=c(0,64,74,104),include.lowest=T),mean)
+mid.dead <- tapply(age,cut(age,breaks=c(0,70,85,120),include.lowest=T),mean)
 
 # Fit best model to multiple imputed datasets
 fm.dead <- list()
@@ -158,7 +158,7 @@ for(h in 1:2){ # ic status
     plot(c(0,35),c(0,1),type="n",xlab="Time",ylab="Survival")
     title(paste(c("Without IC","With IC")[h],"-",c("Males","Females")[l]))
     for(m in 1:M){
-      km <- survfit(Surv(los,dead)~cut(age,breaks=c(0,64,74,104)),data=subset(imp[[m]],ic==c(0,1)[h] & sex==c("M","F")[l]))
+      km <- survfit(Surv(los,dead)~cut(age,breaks=c(0,70,85,120)),data=subset(imp[[m]],ic==c(0,1)[h] & sex==c("M","F")[l]))
       lines(km,col=col.dead,lty=3)
     }
     for(k in 1:length(mid.dead)){
@@ -170,7 +170,6 @@ for(h in 1:2){ # ic status
       surv <- pred.weibull(Time,mu,sigma,what="survival")
       lines(Time,surv,lwd=2,col=col.dead[k])
     }
-    #if(h==1 & l==1){legend("bottomleft",levels(agecat2),col=col.age,lwd=1,bty="n")}
   }
 }
 dev.off()
@@ -179,9 +178,9 @@ dev.off()
 # TIME TO EXIT
 
 # Base model
-fm40 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,64,74,104),include.lowest=T)+ic+sex,data=imp[[1]],dist="weibull"); aic(fm40)
-fm41 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,64,74,104),include.lowest=T)*ic+sex,data=imp[[1]],dist="weibull"); aic(fm41)
-fm42 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,64,74,104),include.lowest=T)*ic*sex,data=imp[[1]],dist="weibull"); aic(fm42)
+fm40 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,70,85,120),include.lowest=T)+ic+sex,data=imp[[1]],dist="weibull"); aic(fm40)
+fm41 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,70,85,120),include.lowest=T)*ic+sex,data=imp[[1]],dist="weibull"); aic(fm41)
+fm42 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,70,85,120),include.lowest=T)*ic*sex,data=imp[[1]],dist="weibull"); aic(fm42)
 
 # # Test interaction age*ic using degree 2 FP
 # best.FP(fm20,xform=~age,degree=2)$power
@@ -199,11 +198,11 @@ fm42 <- survreg(Surv(los,exit)~cut(age,breaks=c(0,64,74,104),include.lowest=T)*i
 
 # Best exit model
 #*********************************************************************
-formula.exit <- Surv(los,exit)~cut(age,breaks=c(0,64,74,104),include.lowest=T)*ic*sex
+formula.exit <- Surv(los,exit)~cut(age,breaks=c(0,70,85,120),include.lowest=T)*ic+sex
 #formula.exit <- Surv(los,exit)~FP(age,c(3,3),shift=1,scale=100)*(ic+sex)+ic*sex
 #*********************************************************************
 col.exit <- c("green","orange","red")
-mid.exit <- tapply(age,cut(age,breaks=c(0,64,74,104),include.lowest=T),mean)
+mid.exit <- tapply(age,cut(age,breaks=c(0,70,85,120),include.lowest=T),mean)
 
 # Fit best model to multiple imputed datasets
 fm.exit <- list()
@@ -227,7 +226,7 @@ for(h in 1:2){ # ic status
     plot(c(0,60),c(0,1),type="n",xlab="Time",ylab="Fraction still hospitalized")
     title(paste(c("Without IC","With IC")[h],"-",c("Males","Females")[l]))
     for(m in 1:M){
-      km <- survfit(Surv(los,exit)~cut(age,breaks=c(0,64,74,104),include.lowest=T),data=subset(imp[[m]],ic==c(0,1)[h] & sex==c("M","F")[l]))
+      km <- survfit(Surv(los,exit)~cut(age,breaks=c(0,70,85,105),include.lowest=T),data=subset(imp[[m]],ic==c(0,1)[h] & sex==c("M","F")[l]))
       lines(km,col=col.exit,lty=3)
     }
     for(k in 1:length(mid.exit)){
@@ -239,7 +238,6 @@ for(h in 1:2){ # ic status
       surv <- pred.weibull(Time,mu,sigma,what="survival")
       lines(Time,surv,lwd=2,col=col.exit[k])
     }
-    #if(h==1 & l==1){legend("topright",levels(agecat2),col=col.age,lwd=1,bty="n")}
   }
 }
 dev.off()
@@ -269,8 +267,6 @@ mort <- list(
 )
 save(mort,file="mort.Rdata")
 
-
-
 # Plot two survival curves
 pdf("surv/compare.pdf",width=12,height=8)
 par(mfrow=c(2,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
@@ -278,53 +274,27 @@ for(h in 1:2){ # ic status
   for(l in 1:2){ # sex
     plot(c(0,60),c(0,1),type="n",xlab="Time",ylab="")
     title(paste(c("Without IC","With IC")[h],"-",c("Males","Females")[l]))
-    for(k in 1:length(age.mid)){
-      newdat <- data.frame(age=rep(age.mid[k],npred),sex=factor(c("M","F")[l],levels=c("M","F")),ic=c(0,1)[h])
+    for(k in 1:length(mid.exit)){
+      newdat <- data.frame(age=rep(mid.exit[k],npred),sex=factor(c("M","F")[l],levels=c("M","F")),ic=c(0,1)[h])
       
       X1 <- model.matrix(xform(formula.dead),newdat)
-      cf1 <- beta.dead
+      cf1 <- mort$dead$coef
       mu.dead <- as.numeric(X1%*%cf1[-length(cf1)])
       sigma.dead <- exp(cf1[length(cf1)])
       surv.dead <- pred.weibull(Time,mu.dead,sigma.dead,what="survival")
       
       X2 <- model.matrix(xform(formula.exit),newdat)
-      cf2 <- beta.exit
+      cf2 <- mort$exit$coef
       mu.exit <- as.numeric(X2%*%cf2[-length(cf2)])
       sigma.exit <- exp(cf2[length(cf2)])
       surv.exit <- pred.weibull(Time,mu.exit,sigma.exit,what="survival")
       
-      lines(Time,surv.dead,lwd=2,col=col.age[k])
-      lines(Time,surv.exit,lty=2,col=col.age[k])
+      lines(Time,surv.dead,lwd=2,col=col.dead[k])
+      lines(Time,surv.exit,lty=2,col=col.exit[k])
     }
-    #if(h==1 & l==1){legend("topright",levels(agecat2),col=col.age,lwd=1,bty="n")}
   }
 }
 dev.off()
-
-# -----------------------------------------------------------------------------
-# PROBABILITY TO DIE AT THE END OF HOSPITAL STAY
-# load("mort.Rdata")
-# 
-# pop <- rpop(n=10000,breaks=age.breaks,page,pfem)
-# 
-# 
-# h1 <- h2 <- matrix(nrow=length(Time),ncol=nlevels(age.cat))
-# colnames(h1) <- colnames(h2) <- levels(age.cat)
-# for(k in 1:nlevels(age.cat)){
-#   m1 <- mu1[1]+c(0,mu1[-1])[k]
-#   m2 <- mu2[1]+c(0,mu2[-1])[k]
-#   h1[,k] <- exp((log(Time)-m1)/sig1)/(sig1*Time)
-#   h2[,k] <- exp((log(Time)-m2)/sig2)/(sig2*Time)
-# }
-# 
-# # Plot probability of death at the end of hospital stay
-# h <- h1/h2
-# plot(range(Time),range(0,h),type="n",xlab="LOS",ylab="Probability")
-# title("Probability of death at the end of hospital stay")
-# for(k in 1:nlevels(age.cat)){
-#   lines(Time,h[,k],col=col.cat[k],lwd=2)
-# }
-# legend("bottom",legend=paste("Age",levels(age.cat)),lwd=2,col=col.cat,horiz=TRUE,bty="n")
 
 # -----------------------------------------------------------------------------
 # SIMULATIONS
@@ -340,111 +310,46 @@ pop$ic <- sapply(p,rbinom,n=1,size=1)
 
 # Generate LOS according to exit model
 X <- model.matrix(xform(mort$exit$formula),pop)
-cf <- m_models$exit$coef; ncf <- length(cf)
+cf <- mort$exit$coef; ncf <- length(cf)
 beta <- cf[1:(ncf-1)]
 sigma <- exp(cf[ncf])
 mu <- as.numeric(X%*%beta)
-pop$los <- sapply(exp(mu),rweibull,n=1,shape=1/sigma)
+pop$los <- rlos2(mu,sigma)
 
-f.dead <- as.formula(paste0("los~",as.character(xform(m_models$dead$formula))[2]),env=environment(m_models$dead$formula))
-f.exit <- as.formula(paste0("los~",as.character(xform(m_models$exit$formula))[2]),env=environment(m_models$exit$formula))
+# Predict hazard of death
+X1 <- model.matrix(xform(mort$dead$formula),pop)
+cf.dead <- mort$dead$coef
+mu.dead <- as.numeric(X1%*%cf.dead[-length(cf.dead)])
+sigma.dead <- exp(cf.dead[length(cf.dead)])
+h.dead <- pred.weibull(pop$los,mu.dead,sigma.dead,what="hazard")
 
-h1.sim <- pred.weibull(f.dead,pop,m_models$dead$coef,what="hazard")
-h2.sim <- pred.weibull(f.exit,pop,m_models$exit$coef,what="hazard")
-p.sim <- h1.sim/h2.sim
+# Predict hazard of exit
+X2 <- model.matrix(xform(mort$exit$formula),pop)
+cf.exit <- mort$exit$coef
+mu.exit <- as.numeric(X2%*%cf.exit[-length(cf.exit)])
+sigma.exit <- exp(cf.exit[length(cf.exit)])
+h.exit <- pred.weibull(pop$los,mu.exit,sigma.exit,what="hazard")
 
-plot(h1.sim,h2.sim)
-abline(0,1)
+# Probability to die at the end of hospital stay
+pdead <- h.dead/h.exit
+range(pdead)
 
-
-
-range(p.sim)
-
+# Plot simulated probability to die as a function of age and sex
+pdf("surv/pdead.pdf",width=12,height=8)
 pos0 <- which(pop$ic==0)
 pos1 <- which(pop$ic==1)
-
-pdf("surv/psim.pdf",width=12,height=8)
 par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
-plot(pop$age[pos0],p.sim[pos0],col=c("blue","red")[(pop$sex=="F")*1+1][pos0],main="Without IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
+plot(pop$age[pos0],pdead[pos0],col=c("blue","red")[(pop$sex=="F")*1+1][pos0],main="Without IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
 abline(h=1,lty=2)
 legend("topleft",c("Males","Females"),col=c("blue","red"),pch=1,bty="n")
 
-plot(pop$age[pos1],p.sim[pos1],col=c("blue","red")[(pop$sex=="F")*1+1][pos1],main="With IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
+plot(pop$age[pos1],pdead[pos1],col=c("blue","red")[(pop$sex=="F")*1+1][pos1],main="With IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
 abline(h=1,lty=2)
 dev.off()
 
-par(mfrow=c(1,2),mar=c(3,3,2,0.5),mgp=c(1.8,0.6,0))
-plot(pop$los[pos0],p.sim[pos0],col=c("blue","red")[(pop$sex=="F")*1+1][pos0],main="Without IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
-abline(h=1,lty=2)
-legend("topleft",c("Males","Females"),col=c("blue","red"),pch=1,bty="n")
+# Force pdead<=1
+pdead <- pmin(pdead,1)
 
-plot(pop$los[pos1],p.sim[pos1],col=c("blue","red")[(pop$sex=="F")*1+1][pos1],main="With IC",xlim=c(0,105),ylim=c(0,2),xlab="Age",ylab="P(death)")
-abline(h=1,lty=2)
-
-
-
-
-par(mfrow=c(1,2))
-pos <- which(p.sim>1)
-plot(pop$age,h1.sim)
-points(pop$age[pos],h1.sim[pos],col="red")
-plot(pop$age,h2.sim,ylim=c(0,0.1))
-points(pop$age[pos],h2.sim[pos],col="red")
-
-plot(pop$age,pop$los)
-
-boxplot(los~ic,data=pop)
-
-
-
-dead.sim <- sapply(p.sim,rbinom,n=1,size=1)
-mean(dead.sim,na.rm=T)
-
-
-
-
-# Generate LOS according to exit model
-age.sim <- factor(rep(NA,N),levels=levels(age.cat))
-los.sim <- h1.sim <- h2.sim <- numeric(N)
-for(k in 1:nlevels(age.cat)){
-  # Parameters for age category
-  m1 <- mu1[1]+c(0,mu1[-1])[k]
-  m2 <- mu2[1]+c(0,mu2[-1])[k]
-  
-  # Age vector
-  pos <- which(A[,k]==1)
-  age.sim[pos] <- levels(age.cat)[k]
-  
-  # Generate LOS
-  los.sim[pos] <- floor(rweibull(length(pos),shape=1/sig2,scale=exp(m2)))
-
-  # Generate instant hazard of death and exit
-  t <- los.sim[pos]
-  t[t==0] <- 0.001
-  h1.sim[pos] <- exp((log(t)-m1)/sig1)/(sig1*t)
-  h2.sim[pos] <- exp((log(t)-m2)/sig2)/(sig2*t)
-}
-p.sim <- h1.sim/h2.sim
-
-# Simulate deaths and calculate global mortality
-dead.sim <- sapply(p.sim,rbinom,n=1,size=1)
-mean(dead.sim)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Death indicator
+dead <- sapply(pdead,rbinom,n=1,size=1)
+mean(dead)

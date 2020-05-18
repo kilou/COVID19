@@ -78,7 +78,7 @@ histo(xF); title("Females")
 # FORECASTS USING PRED.COVID() FUNCTION                        
 
 # Forecasts ICU beds requirements
-pred <- pred.covid(nday=50,nsim=2000,pars,data,mort,type=1,ncpu=4,vcov=F)
+pred <- pred.covid(nday=50,nsim=2000,pars,data,mort,type=3,ncpu=4,vcov=F)
 
 # Plot cumulative counts
 plot.covid(pred,what="nhos",prob=p,from="02/25/2020",date.format="%m/%d/%Y")
@@ -117,11 +117,27 @@ fit.nb(los,cens)
 # ------------------------------------------------------------------------------------------------------
 # ESTIMATE MEAN AND VARIANCE OF EXPONENTIAL GROWTH PARAMETER ON LAST 15 DAYS
 plot(log(nhos)~date,data=data)
-nhos <- subset(data,date>=today-15)$nhos
+nhos <- subset(data,date>=today-10)$nhos
 egp <- nhos[-1]/nhos[-length(nhos)]
-mean(egp)
-sd(egp)
+median(egp) # megp
+var(log(egp-1)) # vegp
 
 egp <- data$nhos[-1]/data$nhos[-nrow(data)]
 plot(data$date[-1],egp)
 
+# Moving average for log(egp-1)
+size <- 10
+x <- data$date[-1]
+y <- log(egp-1)
+
+n <- length(x)
+xm <- rep(x[1],n-size+1)
+ym <- yv <- numeric(n-size+1)
+for(i in 1:(n-size+1)){
+  xm[i] <- mean(x[i:(i+size-1)])
+  ym[i] <- mean(y[i:(i+size-1)])
+  yv[i] <- var(y[i:(i+size-1)])
+}
+
+plot(xm,1+exp(ym))
+plot(xm,yv)

@@ -1,0 +1,543 @@
+%\documentclass[t,9pt,xcolor=dvipsnames,notes]{beamer}        % print frame + notes
+%\documentclass[t,9pt,xcolor=dvipsnames,notes=only]{beamer}   % only notes
+\documentclass[t,9pt,xcolor=dvipsnames]{beamer}              % only frames
+%\documentclass[t,9pt,xcolor=dvipsnames,handout,notes=show]{beamer}      % print frame + notes (no pause)
+%\documentclass[t,9pt,xcolor=dvipsnames,handout]{beamer}      % print frame only (no pause)
+
+% Metropolis theme
+\usetheme[outer/progressbar=frametitle, sectionpage=progressbar, subsectionpage=none, numbering=fraction, block=fill]{metropolis}
+\makeatletter
+\setlength{\metropolis@titleseparator@linewidth}{0.5pt}
+\setlength{\metropolis@progressonsectionpage@linewidth}{0.5pt}
+\setlength{\metropolis@progressinheadfoot@linewidth}{0.5pt}
+\def\@fnsymbol#1{\ensuremath{\ifcase#1\or \dagger\or \ddagger\or
+   \mathsection\or \mathparagraph\or \|\or **\or \dagger\dagger
+   \or \ddagger\ddagger \else\@ctrerr\fi}}
+\makeatother
+
+% Bibliography style
+%\usepackage[style=authoryear,autocite=footnote,backend=bibtex,isbn=false,url=false]{biblatex}
+% \addbibresource{../Thesis/Bibliography.bib}
+\usepackage{xpatch}
+\xapptobibmacro{cite}{\setunit{\nametitledelim}\printfield{title}\printfield{journal}}{}{}
+\usepackage{tabularx}
+
+% Additional packages
+%\usepackage[T1]{fontenc}
+%\usepackage[sfdefault,scaled=.85]{FiraSans}
+%\usepackage{mathpazo}
+%\usepackage{eulervm}
+%\usepackage{newtxsf} 
+
+\usepackage{amsmath,amsfonts,amssymb,amscd,amsthm,xspace,bm,cases,etoolbox}
+\usepackage{xcolor} 
+\usepackage{perpage}
+\usepackage{graphics}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,positioning}
+\usepackage{ragged2e}
+
+\AtBeginEnvironment{pmatrix}{\setlength{\arraycolsep}{2pt}} % narrower columns in pmatrix (requires etoolbox package)
+
+% Specify other colors and options as required
+%\setbeamercolor{alerted text}{fg=Maroon}
+%\setbeamertemplate{items}[square]
+\setbeamertemplate{blocks}[rounded]
+\beamertemplatenavigationsymbolsempty
+%\setbeamercovered{transparent=20}
+\setbeamerfont{alerted text}{series=\bfseries}
+
+\MakePerPage{footnote}
+\renewcommand{\footnotesize}{\tiny} 
+\renewcommand{\thefootnote}{\fnsymbol{footnote}}
+
+\setbeamertemplate{navigation symbols}{\usebeamercolor[fg]{title in head/foot}\usebeamerfont{title in head/foot}\insertframenumber/\inserttotalframenumber}
+\setbeamertemplate{footline}{}
+
+\DeclareMathAlphabet{\mathpzc}{OT1}{pzc}{m}{it}
+
+\newlength{\textlarg}
+\newcommand{\barre}[1]{%
+   \settowidth{\textlarg}{#1}
+   #1\hspace{-\textlarg}\rule[0.5ex]{\textlarg}{0.5pt}}
+
+\newcommand{\backupbegin}{
+   \newcounter{framenumberappendix}
+   \setcounter{framenumberappendix}{\value{framenumber}}
+}
+\newcommand{\backupend}{
+   \addtocounter{framenumberappendix}{-\value{framenumber}}
+   \addtocounter{framenumber}{\value{framenumberappendix}} 
+}
+  
+
+\newcommand{\argmax}{\arg\!\max}
+\newcommand\numberthis{\addtocounter{equation}{1}\tag{\theequation}}
+
+\newcommand{\argmin}{\mathop{\mathrm{argmin}}\limits}
+
+\newcommand{\e}[1]{ \ensuremath{\text{E}\!\left[{#1}\right]} }
+
+%\setbeamerfont{institute}{size=\fontsize{6pt}{7pt}}
+
+%\renewcommand\thempfootnote{\arabic{mpfootnote}}
+
+% Title and author information
+\title{PROJECTIONS OF ICU OCCUPATION AND HOSPITAL MORTALITY DURING THE COVID-19 EPIDEMIC IN THE CANTON OF VD}
+\subtitle{}
+\author{Aziz Chaouch, Yves Eggli, Isabella Locatelli, Jérôme Pasquier, Valentin Rousson, Bastien Trächsel}
+\institute{Center for Primary Care and Public Health (Unisanté), University of Lausanne, Switzerland}
+\date{May, 2020}
+
+\begin{document}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}
+\titlepage
+
+% ***** Comments
+\note{
+\tiny
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Mandate}
+\justifying
+
+In march 2020, DGS (Direction Générale de la Santé) contacted us to develop a software tool to follow COVID-19 epidemic in the Canton of VD and project the following quantities under different scenarios:
+\begin{enumerate}
+\item global bed occupation in intensive care units (ICU) in VD hospitals (initial request)
+\item Hospital mortality (additional request)
+\end{enumerate}
+
+\alert{Goals}: Assess whether ICUs would be  overflooded by patients and take
+
+In the event of ICUs overflooding, patients admission to ICU would be restricted and granted only to those patients with the best chances of survival. A patient in need of IC and whose access to ICU is refused is virtually condemned to die.
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Data}
+\justifying
+
+DGS initially provided \alert{aggregated data} with daily information on
+\begin{itemize}
+\item cumulative counts of COVID-19 hospitalized patients
+\item number of ICU beds occupied by COVID-19 patients
+\item number of COVID-19 related deaths
+\end{itemize}
+\bigskip
+
+and later provided anonymized \alert{individual patient data} with
+\begin{itemize}
+\item age, sex
+\item dates of hospital admission/discharge and ICU transfer/discharge (if applicable)
+\item health status (alive/dead) on hospital discharge
+\end{itemize}
+
+Data (Excel file) was updated every day or couple of days. Last available update on April 17, 2020.
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+
+% ##################################################################################
+\section{Projections for ICU beds occupation}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Projections for ICU beds occupation}
+
+Based on daily \alert{cumulative number of hospitalizations} and the following 5 parameters:
+
+\begin{enumerate}
+\item \alert{EGP} = Exponential Growth Parameter for cumulative number of hospitalizations
+\bigskip
+
+\item \alert{ICP} = Intensive Care Proportion (\% hospitalized patients that will require IC at some point)
+\bigskip
+
+\item \alert{LAG} = Time interval between hospital admission and ICU transfer
+\bigskip
+
+\item \alert{ADP} = Admission probability (\% patient requiring IC that will be admitted in ICUs)
+\bigskip
+
+\item \alert{LOS} = Length of Stay in ICU
+\end{enumerate}
+
+Each parameter taken from distributions and allowed to vary over time. User input especially import for EGP and ADP.
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+Unlike the number of infected cases, counts of hospitalized patients are unaffected by the screening policy
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{1. EGP: Exponential Growth Parameter}
+
+Defines how the \alert{cumulative number of hospitalized patients} grows from day $j$ to day $j+1$
+
+Let $N_{j}$ denote the cumulative number of hospitalized patients up to day $j$. The cumulative number of hospitalized patient on day $j+1$ is  given by
+\begin{equation*}
+N_{j+1}= \text{EGP}_{j+1} \cdot N_{j}
+\end{equation*}
+
+with $\text{EGP}_{j} \geq 1$ and $\text{EGP}_{j}=1$ defining the end of the epidemic.
+\medskip
+
+Distribution:
+\begin{equation*}
+\log(\text{EGP}_{j}-1) \sim \mathcal{N}\left(\log(\text{megp}_{j}-1), \text{vegp}_{j}\right)
+\end{equation*}
+\medskip
+
+Projected cumulative counts of hospitalizations were used to derive daily new hospitalizations (i.e. incident cases).
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{2. ICP: Intensive Care Proportion}
+
+Defines proportion of hospitalized patients that will require IC at some point. DGS estimated that 1 hospitalized patient out of 5 would require IC (verified on individual patient data).
+\medskip
+
+Distribution:
+\begin{equation*}
+\text{logit}(\text{ICP}_{j}) \sim \mathcal{N}\left(\text{logit}(\text{micp}_{j}), \text{vicp}_{j}\right)
+\end{equation*}
+\medskip
+
+\alert{Among new hospitalized patients on day $j$}, let $g_{ij}$ denote the the need for IC of patient $i$
+\begin{itemize}
+\item $g_{ij}=1$: patient $i$ will require IC at some point (during hospitalization)
+\item $g_{ij}=0$: patient $i$ will not require IC
+\end{itemize}
+
+For each new hospitalized patient $i$ on day $j$, simulate $g_{ij}$ as
+\begin{equation*}
+g_{ij} \sim \text{Bernoulli}\left(\text{ICP}_{j}\right)
+\end{equation*} 
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{3. LAG: Time to (theoretical) ICU transfer}
+
+Defines number of days between hospital admission and ICU transfer (only applies to patients requiring IC( i.e. $g_{ij}=1$).
+\medskip
+
+Distribution:
+\begin{equation*}
+\text{LAG}_{ij} \sim \text{NegBin}\left(\text{mlag}_{j}, \text{vlag}_{j}\right)
+\end{equation*}
+\medskip
+
+Estimates based on available data: mlag=2 and vlag=9 ($q_{5\%}=0$, $q_{95\%}=8$).
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{4. ADP: (ICU) Admission Probability}
+
+Lag
+
+
+Distribution:
+\begin{equation*}
+\text{logit}(\text{ADP}_{j}) \sim \mathcal{N}\left(\text{logit}(\text{madp}_{j}), \text{vadp}_{j}\right)
+\end{equation*}
+
+\alert{Among hospitalized patients on day $j$}, let $g_{ij}$ denote the the need for IC of patient $i$
+\begin{itemize}
+\item $g_{ij}=1$: patient $i$ will require IC at some point (during hospitalization)
+\item $g_{ij}=0$: patient $i$ will not require IC
+\end{itemize}
+
+For each new hospitalized patient $i$ on day $j$, simulate $g_{ij}$ as
+\begin{equation*}
+g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
+\end{equation*} 
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{5. LOS: Length of Stay in ICU}
+
+LOS = length of stay (nb days) in ICU (only applies to patients requiring IC)
+
+Distribution:
+\begin{equation*}
+\text{LOS}_{ij} \sim \text{NegBin}\left(\text{mlos}_{j}, \text{vlos}_{j}\right)
+\end{equation*}
+
+
+
+\alert{Among hospitalized patients on day $j$}, let $g_{ij}$ denote the the need for IC of patient $i$
+\begin{itemize}
+\item $g_{ij}=1$: patient $i$ will require IC at some point (during hospitalization)
+\item $g_{ij}=0$: patient $i$ will not require IC
+\end{itemize}
+
+For each new hospitalized patient $i$ on day $j$, simulate $g_{ij}$ as
+\begin{equation*}
+g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
+\end{equation*} 
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Simulations}
+
+
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ##################################################################################
+\section{Projections for hospital mortality}
+\note{
+\tiny
+\justifying
+
+}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Projections for hospital mortality}
+\justifying
+
+Uses daily number of new hospitalizations (observed or projected using EGP)
+
+Three age categories ($<$ 70, 70-85, $\geq$ 85): more convenient to change age distribution in the future compared to continuous age
+
+
+ICP, LAG and total hospital LOS derived using models
+
+We need to simulate patients deaths 
+\alert{Competitive risks}
+
+
+
+
+3 models:
+\begin{enumerate}
+\item Logistic regression for probability to require IC
+
+\item Survival (weibull) fit for time to death
+
+Event: death
+Censoring: patients still hospitalized + patients who recovered (i.e. exited hospital alive) 
+
+\item Survival (weibull) fit for time to hospital release (dead or alive)
+
+Event: hospital release (dead or alive)
+Censoring: patients still hospitalized
+
+\end{enumerate}
+
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Probability to require IC}
+\justifying
+
+The probability $p_{i}$ that patient $i$ did require IC at some point during hospitalization was modeled as a function of age and sex in a logistic regression model:
+
+\begin{equation*}
+\text{logit}(p_{i})=f(\text{age}_{i}+\text{sex}_{i})
+\end{equation*}
+
+IC indicator variable for new patients simulated as $g_{i} \sim \text{Bernoulli}(p_{i})$
+
+For existing patients without IC information (i.e. those still in hospital but not yet admitted in ICU), the indicator $g_{i}$ was imputed  using this model ($M=50$ imputations).
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Survival models}
+\justifying
+
+\alert{Time to death}
+
+Event: death
+
+Censoring: patient still in hospital + patient who left hospital alive (i.e. cured)
+\begin{align*}
+T_{1i} & \sim \text{Weibull}(\mu_{1i},\sigma_{1}) \\
+\log(\mu_{1i}) & = f_{1}(\text{age}_{i}+\text{sex}_{i}+g_{i}) \\
+h_{1i} & = \text{instant hazard}
+\end{align*}
+
+\alert{Time to hospital release (dead or alive)}
+
+Event: hospital release (dead or alive)
+
+Censoring: patient still in hospital
+\begin{align*}
+T_{2i} & \sim \text{Weibull}(\mu_{2i},\sigma_{2}) \\
+\log(\mu_{2i}) & = f_{2}(\text{age}_{i}*g_{i}+\text{sex}_{i}) \\
+h_{2i} & = \text{instant hazard}
+\end{align*}
+
+Probability $p^{D}_{i}$ of dying at the end of hospital staygiven by $p^{D}_{i} = h_{1i}/h_{2i}$
+
+
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Simulating patient death (in hospital)}
+\justifying
+
+Let $n_{j}$ define the number of existing/new hospitalizations on day $j$
+\begin{enumerate}
+\item Draw age/sex from $n_{j}$ patients
+\item Generate IC status $g_{i}$ according to logistic regression model for $i=1,...,n_{j}$
+\item If $g_{i}=1$, generate a lag time according to lag model
+\item Generate a total hospital LOS $T_{i}$ using Weibull model for time to hospital release (adjusted for age, sex and $g_{i}$)
+\item Calculate hazard of death $h_{1i}=h_{1}(T_{i})$ and hazard of exiting hospital $h_{2i}=h_{2}(T_{i})$
+\item Draw death indicator $\delta_{i} \sim \text{Bernoulli}(h_{1i}/h_{2i})$
+\end{enumerate}
+
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Prediction types for mortality}
+\justifying
+
+Three  types of predictions depending on available data:
+\pause
+
+\alert{Type 3}
+Require aggregated data on hospitalizations (mortality data optional). Uses observed cumulative counts of hospitalized patients and generate new patients/deaths from the start of the epidemic.
+\begin{itemize}
+\item Prediction intervals for past. Can be compared to observed cumulative death counts (when available) for "goodness of fit"
+\item Cumulative deaths counts agree with observed deaths counts
+\end{itemize}
+\pause
+
+\alert{Type 2}
+Require aggregated data on hospitalizations + cumulative death counts. Same as for type 1 except that simulated deaths in the past are replaced with observed death counts
+\begin{itemize}
+\item point
+\end{itemize}
+\pause
+
+\alert{Type 1}
+Require individual patient data. Uses all individual patient data (i.e. observed age, sex, IC and death status) and generate new patient deaths according to model
+\begin{itemize}
+\item No prediction intervals for past, 
+\item Cumulative deaths counts agree with observed deaths counts
+\end{itemize}
+
+
+
+
+
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+% ----------------------------------------------------------------------------------
+\begin{frame}{Limitations}
+\justifying
+
+
+
+
+Multi-state models
+
+
+
+% ****** Comments
+\note{
+\tiny
+\justifying
+
+}
+\end{frame}
+
+\end{document}

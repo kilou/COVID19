@@ -385,7 +385,7 @@ pred.covid <- function(
   if(min(pars$sex_dist$date)>min(data$date)){stop("First date defining proportion of females in each age category must be anterior or equal to first date in the data!")}
   
   # Some useful things
-  today <- data$date[nrow(data)]       # today i.e. last date entered in data
+  today <- max(data$date)              # today i.e. last date entered in data
   days <- c(data$date,today+c(1:nday)) # vector of days for observed data and predictions
   j <- which(days==today)              # index of today
   ipd <- attr(data,"ipd")              # extract individual patient data when available
@@ -525,7 +525,7 @@ pred.covid <- function(
         all$ic[sel] <- sapply(pic,rbinom,n=1,size=1)
       }
       
-      # Simulate hospital LOS for existing patients that are still in hospital: LOS is censored tomorrow
+      # Simulate hospital LOS for existing patients that are still in hospital: LOS is censored today
       sel <- which(all$hos.in<=today & is.na(all$hos.out))
       if(length(sel)>0){
         X <- model.matrix(xform(mort$exit$formula),all[sel,])
@@ -545,8 +545,15 @@ pred.covid <- function(
         all$hos.out[sel] <- all$hos.in[sel]+all$los[sel]
       }
       
-      # Simulate lag for patients requiring IC (with condition lag<=LOS)
-      sel <- which(all$ic==1 & is.na(all$icu.in)); nsel <- length(sel)
+      # Simulate lag for patients that are still in hospital and who require IC (with condition follow-up<lag<=LOS)
+      sel <- which(all$ic==1 & is.na(all$icu.in) & all$hos.in<=today); nsel <- length(sel)
+      if(nsel>0){
+        all$lag[sel] <- rlag2(mlag=rep(mort$lag$mlag,nsel),vlag=rep(mort$lag$vlag,nsel),lower=as.numeric(today-all$hos.in[sel])+1,upper=all$los[sel])
+        all$icu.in[sel] <- all$hos.in[sel]+all$lag[sel]
+      }
+      
+      # Simulate lag for new patients who require IC (with condition lag<=LOS)
+      sel <- which(all$ic==1 & is.na(all$icu.in) & all$hos.in>today); nsel <- length(sel)
       if(nsel>0){
         all$lag[sel] <- rlag2(mlag=rep(mort$lag$mlag,nsel),vlag=rep(mort$lag$vlag,nsel),upper=all$los[sel])
         all$icu.in[sel] <- all$hos.in[sel]+all$lag[sel]
@@ -579,13 +586,6 @@ pred.covid <- function(
         for(k in restrict){
           sel <- which(all$icu.in==days[k]); nsel <- length(sel) # select patients that are supposed to enter ICU on day k
           if(nsel>0){
-            refused <- rbinom(nsel,size=1,prob=1-adp[k])            # patient-specific binary indicator for effective ICU refusal on day k
-
-            # nref <- round(nsel*(1-adp[k]))
-            # refused <- rep(0,nsel)
-            # refused[sample(c(1:nsel),size=nref)] <- 1
-  
-            
             # # Predict hazard of death on day k
             # X1 <- model.matrix(xform(mort$dead$formula),all[sel,,drop=FALSE])
             # mu.dead <- as.numeric(X1%*%cf.dead[s,-ncol(cf.dead)])
@@ -600,7 +600,39 @@ pred.covid <- function(
             # 
             # # Calculate probability of dying on day k
             # pdead <- pmin(h.dead/h.exit,1)
+            
+            # # a) Refuse ICU access to patients with largest probability of dying
+            # nref <- round(nsel*(1-adp[k]))
+            # refused <- rep(0,nsel)
+            # refused[rev(order(pdead))[1:nref]] <- 1
+            
+            # b)
+            # wt <- nsel*pdead/sum(pdead)
+            # 
+            # 
+            # ff <- function(pars,pdead,adp){
+            #   beta <- c(pars[1],exp(pars[2]))
+            #   beta[1] <- logit(1-adp)
+            #   pdead[pdead==1] <- 0.999999
+            #   p <- expit(cbind(1,logit(pdead))%*%beta)
+            #   abs(mean(p)-(1-adp))
+            # }
+            # 
+            # 
+            # opt <- optim(par=c(0,0),fn=ff,pdead=pdead,adp=0.6,method="Nelder-Mead",control=list(maxit=1000,trace=1))
+            # opt
+            # beta <- c(opt$par[1],exp(opt$par[2]))
+            # beta[1] <- logit(1-adp)
+            # p0 <- as.numeric(expit(cbind(1,logit(pdead))%*%beta))
+            
+            # c) Random selection applied to each patient
+            refused <- rbinom(nsel,size=1,prob=1-adp[k])            # patient-specific binary indicator for effective ICU refusal on day k
 
+            # # d) Random selection after determining nb of patients that will be refused
+            # nref <- round(nsel*(1-adp[k]))
+            # refused <- rep(0,nsel)
+            # refused[sample(c(1:nsel),size=nref)] <- 1
+            
             sel.refused <- sel[refused==1]                        # among patients requiring IC on day k, select those that will be refused
             all$hos.out[sel.refused] <- all$icu.in[sel.refused]   # set date of hospital exit on the theoretical date of ICU admission
             all$los[sel.refused] <- all$lag[sel.refused] #as.numeric(all$hos.out[sel.refused]-all$hos.in[sel.refused]) # correct LOS
