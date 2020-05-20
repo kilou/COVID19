@@ -1,4 +1,4 @@
-# COVID19 ICU beds & mortality forecasts
+# PROJECTIONS OF ICU OCCUPATION AND HOSPITAL MORTALITY DURING THE COVID-19 EPIDEMIC IN THE CANTON OF VD
 
 
 A shiny app that depends on the R Packages: 
