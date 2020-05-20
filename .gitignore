@@ -8,5 +8,14 @@ doc/*.fdb_latexmk
 doc/*.fls
 doc/*.log
 doc/*.synctex.gz
+doc/beamer/*.aux
+doc/beamer/*.toc
+doc/beamer/*.snm
+doc/beamer/*.out
+doc/beamer/*.nav
+doc/beamer/*.log
+doc/beamer/*.synctex.gz
 data/
 tmp/
+*.jpeg
+surv/*.pdf
