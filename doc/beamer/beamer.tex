@@ -36,6 +36,7 @@
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows,positioning}
 \usepackage{ragged2e}
+\usepackage{hyperref}
 
 \AtBeginEnvironment{pmatrix}{\setlength{\arraycolsep}{2pt}} % narrower columns in pmatrix (requires etoolbox package)
 
@@ -108,11 +109,17 @@
 
 In march 2020, DGS (Direction Générale de la Santé) contacted us to develop a software tool to follow COVID-19 epidemic in the Canton of VD and project the following quantities under different scenarios:
 \begin{enumerate}
-\item global bed occupation in intensive care units (ICU) in VD hospitals (initial request)
+\item Global bed occupation in intensive care units (ICU) in VD hospitals (initial request)
 \item Hospital mortality (additional request)
 \end{enumerate}
+\pause
 
-\alert{Goals}: Assess whether ICUs would be  overflooded by patients and take
+\alert{Goals}: 
+\begin{itemize}
+\item Assess whether and when ICUs could be  overflooded by COVID-19 patients ($\sim$ 200 ICUs beds for COVID-patients available in VD)
+\item Assess whether ice skating rinks would be needed to store deceased patients before funerals
+\end{itemize}
+\medskip
 
 In the event of ICUs overflooding, patients admission to ICU would be restricted and granted only to those patients with the best chances of survival. A patient in need of IC and whose access to ICU is refused is virtually condemned to die.
 
@@ -160,7 +167,10 @@ Data (Excel file) was updated every day or couple of days. Last available update
 % ----------------------------------------------------------------------------------
 \begin{frame}{Projections for ICU beds occupation}
 
-Based on daily \alert{cumulative number of hospitalizations} and the following 5 parameters:
+Based on daily \alert{cumulative number of hospitalizations} (more precise than cumulative counts of detected cases which depend on screening policy)
+\medskip
+
+Projections based on 5 potentially time-varying parameters:
 
 \begin{enumerate}
 \item \alert{EGP} = Exponential Growth Parameter for cumulative number of hospitalizations
@@ -178,7 +188,7 @@ Based on daily \alert{cumulative number of hospitalizations} and the following 5
 \item \alert{LOS} = Length of Stay in ICU
 \end{enumerate}
 
-Each parameter taken from distributions and allowed to vary over time. User input especially import for EGP and ADP.
+Each parameter drawn from a distribution with potentially time-varying mean/median and variance. User input crucial for EGP and ADP!
 
 % ****** Comments
 \note{
@@ -229,13 +239,14 @@ Distribution:
 \end{equation*}
 \medskip
 
-\alert{Among new hospitalized patients on day $j$}, let $g_{ij}$ denote the the need for IC of patient $i$
+Simulation of IC requirement for a patient:
+Let $g_{ij}$ denote the indicator variable for IC requirement for patient $i$ among patients who were admitted to hospital on day $j$, such that
 \begin{itemize}
 \item $g_{ij}=1$: patient $i$ will require IC at some point (during hospitalization)
 \item $g_{ij}=0$: patient $i$ will not require IC
 \end{itemize}
 
-For each new hospitalized patient $i$ on day $j$, simulate $g_{ij}$ as
+Then $g_{ij}$ is simulated according to
 \begin{equation*}
 g_{ij} \sim \text{Bernoulli}\left(\text{ICP}_{j}\right)
 \end{equation*} 
@@ -251,7 +262,7 @@ g_{ij} \sim \text{Bernoulli}\left(\text{ICP}_{j}\right)
 % ----------------------------------------------------------------------------------
 \begin{frame}{3. LAG: Time to (theoretical) ICU transfer}
 
-Defines number of days between hospital admission and ICU transfer (only applies to patients requiring IC( i.e. $g_{ij}=1$).
+Defines number of days between hospital admission and ICU transfer (only applies to patients requiring IC (i.e. $g_{ij}=1$)
 \medskip
 
 Distribution:
@@ -260,7 +271,7 @@ Distribution:
 \end{equation*}
 \medskip
 
-Estimates based on available data: mlag=2 and vlag=9 ($q_{5\%}=0$, $q_{95\%}=8$).
+Estimates based on available data: mlag=2 and vlag=9 days ($q_{95\%}=8, q_{99\%}=14$)
 
 % ****** Comments
 \note{
@@ -273,23 +284,26 @@ Estimates based on available data: mlag=2 and vlag=9 ($q_{5\%}=0$, $q_{95\%}=8$)
 % ----------------------------------------------------------------------------------
 \begin{frame}{4. ADP: (ICU) Admission Probability}
 
-Lag
+Defines proportion of patients with $g_{ij}=1$ that will be effectively admitted in ICU on day $k=j+\text{LAG}_{ij}$. Ideally $\text{ADP}_{j}=1$ (no restriction).
+\medskip
 
-
-Distribution:
+Distribution (if $\text{ADP}_{j}<1$):
 \begin{equation*}
 \text{logit}(\text{ADP}_{j}) \sim \mathcal{N}\left(\text{logit}(\text{madp}_{j}), \text{vadp}_{j}\right)
 \end{equation*}
 
-\alert{Among hospitalized patients on day $j$}, let $g_{ij}$ denote the the need for IC of patient $i$
+Ideal situation: \
+
+Simulation of admittance of patient $i$ on day $k$:
+Let $a_{ij}$ denote the indicator variable for ICU admission for patient $i$ (with $g_{ij}=1$) on day $k=j+\text{LAG}_{ij}$, such that
 \begin{itemize}
-\item $g_{ij}=1$: patient $i$ will require IC at some point (during hospitalization)
-\item $g_{ij}=0$: patient $i$ will not require IC
+\item $a_{ij}=1$: patient $i$ is admitted in ICU on day $k$
+\item $a_{ij}=0$: patient $i$ is not admitted in ICU on day $k$ (=death)
 \end{itemize}
 
-For each new hospitalized patient $i$ on day $j$, simulate $g_{ij}$ as
+Then $a_{ij}$ is simulated according to
 \begin{equation*}
-g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
+a_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
 \end{equation*} 
 
 % ****** Comments
@@ -305,25 +319,15 @@ g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
 % ----------------------------------------------------------------------------------
 \begin{frame}{5. LOS: Length of Stay in ICU}
 
-LOS = length of stay (nb days) in ICU (only applies to patients requiring IC)
+Defines length of stay (nb days) in ICU (only applies to patients requiring IC)
+\medskip
 
 Distribution:
 \begin{equation*}
 \text{LOS}_{ij} \sim \text{NegBin}\left(\text{mlos}_{j}, \text{vlos}_{j}\right)
 \end{equation*}
 
-
-
-\alert{Among hospitalized patients on day $j$}, let $g_{ij}$ denote the the need for IC of patient $i$
-\begin{itemize}
-\item $g_{ij}=1$: patient $i$ will require IC at some point (during hospitalization)
-\item $g_{ij}=0$: patient $i$ will not require IC
-\end{itemize}
-
-For each new hospitalized patient $i$ on day $j$, simulate $g_{ij}$ as
-\begin{equation*}
-g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
-\end{equation*} 
+Estimates based on available data: mlos=13 and vlos=154 days ($q_{95\%}=38, q_{99\%}=57$)
 
 % ****** Comments
 \note{
@@ -334,9 +338,19 @@ g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
 \end{frame}
 
 % ----------------------------------------------------------------------------------
-\begin{frame}{Simulations}
+\begin{frame}{Simulation steps}
 
+\begin{enumerate}
+\item Draw parameters $\text{EGP}_{j}$, $\text{ICP}_{j}$ and $\text{ADP}_{j}$ from their distribution for each day $j$
+\item Project cumulative counts of hospitalizations using EGP and derive incident hospitalized cases based on observed/projected cumulative counts
+\item Generate binary indicator $g_{ij} \sim \text{Bernoulli}(\text{ICP}_{j})$ for fake patient $i$ hospitalized on day $j$
+\item Restrict attention to those patients with simulated $g_{ij}=1$ and generate $\text{LAG}_{ij} \sim \text{NegBin}(\text{mlag}_{j},\text{vlag}_{j})$
+\item Decide whether patient $i$ will be admitted in ICU on day $k=j+\text{LAG}_{ij}$ by generating $a_{ij} \sim \text{Bernoulli}(\text{ADP}_{j})$
+\item For patients with $a_{ij}=1$, generate $\text{LOS}_{ij} \sim \text{NegBin}(\text{mlos}_{j},\text{vlos}_{j})$
+\item Build bed occupancy matrix and sum-up nb of beds occupied each day
+\end{enumerate}
 
+Simulations repeated 1000 times (could be increased...) $\rightarrow$ construct \alert{predictive distribution of the number of occupied ICU beds on each day} (from start of the epidemic until $X$ days in the future). Predictive distribution summarized using median and e.g. quantiles 5\% and 95\%
 
 % ****** Comments
 \note{
@@ -358,35 +372,26 @@ g_{ij} \sim \text{Bernoulli}\left(\text{ADP}_{j}\right)
 \begin{frame}{Projections for hospital mortality}
 \justifying
 
-Uses daily number of new hospitalizations (observed or projected using EGP)
+Uses daily number of new hospitalizations (as observed or projected using EGP)
 
-Three age categories ($<$ 70, 70-85, $\geq$ 85): more convenient to change age distribution in the future compared to continuous age
+We wanted mortality to be adjusted for age (strong predictor) and possibly sex/IC requirements. The following age groups were defined:
+\medskip
+\begin{table}[ht]
+\centering
+ \begin{tabular}{|c|c|c|} \hline
+ Age group & Global proportion & Proportion of females \\
+ \hline
+ $<$ 70 y & 50\% & 37\% \\
+ 70-85 y & 33\% & 41\% \\
+ $\geq$ 85 y & 17\% & 53\%\\
+ \hline
+ \end{tabular}
+ \end{table}
+ \medskip
+ 
+Simple broad age categories enables investigation of scenarios were the structure of the population of hospitalized patients changes with time (e.g. future arrival of old patients from nursing homes etc)
 
-
-ICP, LAG and total hospital LOS derived using models
-
-We need to simulate patients deaths 
-\alert{Competitive risks}
-
-
-
-
-3 models:
-\begin{enumerate}
-\item Logistic regression for probability to require IC
-
-\item Survival (weibull) fit for time to death
-
-Event: death
-Censoring: patients still hospitalized + patients who recovered (i.e. exited hospital alive) 
-
-\item Survival (weibull) fit for time to hospital release (dead or alive)
-
-Event: hospital release (dead or alive)
-Censoring: patients still hospitalized
-
-\end{enumerate}
-
+For this reason, ICP (disease severity), LAG and total hospital LOS were derived using statistical models and were not allowed to vary over time anymore!
 
 % ****** Comments
 \note{
@@ -397,7 +402,7 @@ Censoring: patients still hospitalized
 \end{frame}
 
 % ----------------------------------------------------------------------------------
-\begin{frame}{Probability to require IC}
+\begin{frame}{Probability to require IC and lag}
 \justifying
 
 The probability $p_{i}$ that patient $i$ did require IC at some point during hospitalization was modeled as a function of age and sex in a logistic regression model:
@@ -410,6 +415,8 @@ IC indicator variable for new patients simulated as $g_{i} \sim \text{Bernoulli}
 
 For existing patients without IC information (i.e. those still in hospital but not yet admitted in ICU), the indicator $g_{i}$ was imputed  using this model ($M=50$ imputations).
 
+Lag was generated according to $\text{LAG}_{i} \sim \text{Weibull}(\mu,\sigma)$
+
 % ****** Comments
 \note{
 \tiny
@@ -419,7 +426,7 @@ For existing patients without IC information (i.e. those still in hospital but n
 \end{frame}
 
 % ----------------------------------------------------------------------------------
-\begin{frame}{Survival models}
+\begin{frame}{Survival models for competitive risks}
 \justifying
 
 \alert{Time to death}
@@ -444,8 +451,7 @@ T_{2i} & \sim \text{Weibull}(\mu_{2i},\sigma_{2}) \\
 h_{2i} & = \text{instant hazard}
 \end{align*}
 
-Probability $p^{D}_{i}$ of dying at the end of hospital staygiven by $p^{D}_{i} = h_{1i}/h_{2i}$
-
+Probability of dying at the end of hospital given by $h_{1i}/h_{2i}$
 
 
 % ****** Comments
@@ -460,16 +466,17 @@ Probability $p^{D}_{i}$ of dying at the end of hospital staygiven by $p^{D}_{i} 
 \begin{frame}{Simulating patient death (in hospital)}
 \justifying
 
-Let $n_{j}$ define the number of existing/new hospitalizations on day $j$
+Let $n_{j}$ define the number of existing/projected new hospitalizations on day $j$:
 \begin{enumerate}
-\item Draw age/sex from $n_{j}$ patients
+\item Draw age/sex from defined distribution (i.e. age categories)
 \item Generate IC status $g_{i}$ according to logistic regression model for $i=1,...,n_{j}$
-\item If $g_{i}=1$, generate a lag time according to lag model
-\item Generate a total hospital LOS $T_{i}$ using Weibull model for time to hospital release (adjusted for age, sex and $g_{i}$)
-\item Calculate hazard of death $h_{1i}=h_{1}(T_{i})$ and hazard of exiting hospital $h_{2i}=h_{2}(T_{i})$
+\item Generate total hospital LOS $T_{2i}$ using Weibull model for time to hospital release (adjusted for age, sex and $g_{i}$)
+\item If $g_{i}=1$, generate a lag time according to lag model (conditionned on $\text{LAG}_{i}<=\text{LOS}_{i}$)
+\item Calculate hazard of death $h_{1i}=h_{1}(T_{2i})$ and hazard of exiting hospital either alive or dead $h_{2i}=h_{2}(T_{2i})$
 \item Draw death indicator $\delta_{i} \sim \text{Bernoulli}(h_{1i}/h_{2i})$
 \end{enumerate}
 
+1000 simulations: allows to construct predictive distribution of the cumulative number of deaths occurring every day. Predictive distribution summarized using median and e.g. quantiles 5\% and 95\%
 
 % ****** Comments
 \note{
@@ -480,37 +487,31 @@ Let $n_{j}$ define the number of existing/new hospitalizations on day $j$
 \end{frame}
 
 % ----------------------------------------------------------------------------------
-\begin{frame}{Prediction types for mortality}
+\begin{frame}{Three types of mortality projections}
 \justifying
 
-Three  types of predictions depending on available data:
-\pause
-
 \alert{Type 3}
-Require aggregated data on hospitalizations (mortality data optional). Uses observed cumulative counts of hospitalized patients and generate new patients/deaths from the start of the epidemic.
+Require aggregated data on hospitalizations (mortality data optional). Uses observed cumulative counts of hospitalized patients and generate new patients/deaths from the start of the epidemic
 \begin{itemize}
 \item Prediction intervals for past. Can be compared to observed cumulative death counts (when available) for "goodness of fit"
-\item Cumulative deaths counts agree with observed deaths counts
+\item Mimics what could have happened in a similar epidemic with same cumulative number of hospitalizations but with different patients
 \end{itemize}
 \pause
 
 \alert{Type 2}
-Require aggregated data on hospitalizations + cumulative death counts. Same as for type 1 except that simulated deaths in the past are replaced with observed death counts
+Require aggregated data on hospitalizations + cumulative death counts. Same as for type 1 except that simulated deaths in the past are simply replaced with observed death counts in all simulations
 \begin{itemize}
-\item point
+\item No prediction intervals for past
+\item Only an approximation!
 \end{itemize}
 \pause
 
 \alert{Type 1}
-Require individual patient data. Uses all individual patient data (i.e. observed age, sex, IC and death status) and generate new patient deaths according to model
+Require individual patient data. Uses all individual patient data (i.e. observed age, sex, IC and death status)
 \begin{itemize}
-\item No prediction intervals for past, 
-\item Cumulative deaths counts agree with observed deaths counts
+\item No prediction intervals for past (as for type 2)
+\item Coherent deaths counts (i.e. accounts for all available information)
 \end{itemize}
-
-
-
-
 
 
 % ****** Comments
@@ -522,14 +523,21 @@ Require individual patient data. Uses all individual patient data (i.e. observed
 \end{frame}
 
 % ----------------------------------------------------------------------------------
-\begin{frame}{Limitations}
+\begin{frame}{Software links}
 \justifying
 
+\bigskip
+R Shiny application available on dedicated server (at least up to June 5, 2020):
+\bigskip
 
+\begin{center}
+\href{https://stat-cmb.ddns.net/COVID19/}{\color{blue}{\underline{https://stat-cmb.ddns.net/COVID19/}}}
+\end{center}
 
-
-Multi-state models
-
+Source code: 
+\begin{center}
+\href{https://github.com/kilou/COVID19}{\color{blue}{\underline{https://github.com/kilou/COVID19}}}
+\end{center}
 
 
 % ****** Comments

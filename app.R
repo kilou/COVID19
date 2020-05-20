@@ -51,8 +51,7 @@ load("mort.Rdata")
 
 ui <- shinyUI(fluidPage(
 
-  titlePanel(paste("ICU beds and mortality projection at hospitals VD",
-                   "during COVID-19")),
+  titlePanel(paste("PROJECTIONS OF ICU OCCUPATION AND HOSPITAL MORTALITY DURING THE COVID-19 EPIDEMIC IN THE CANTON OF VD")),
 
   mainPanel(
 
