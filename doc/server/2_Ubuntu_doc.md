@@ -1,4 +1,4 @@
-### Virtual machine/server configuration (Ubuntu 20.04)
+### Virtual machine/server configuration (Ubuntu 20.04) (~50 min)
 
 ## Base configuration:
 I would advise switching to your favorite ubuntu source for updates.
@@ -113,8 +113,8 @@ sudo SU - \
 Then, we install gdebi-core which is required for shiny and we download/install the last version of shiny-server from rstudio.
 ```
 sudo apt-get install gdebi-core
-wget https://download3.rstudio.org/ubuntu-14.04/x86_64/shiny-server-1.5.13.944-amd64.deb
-sudo gdebi shiny-server-1.5.13.944-amd64.deb
+wget https://download3.rstudio.org/ubuntu-14.04/x86_64/shiny-server-1.5.14.948-amd64.deb
+sudo gdebi shiny-server-1.5.14.948-amd64.deb
 ```
 It should be installed.
 
